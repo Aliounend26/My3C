@@ -1,0 +1,46 @@
+import { Router } from "express";
+import attendanceRoutes from "./attendanceRoutes.js";
+import authRoutes from "./authRoutes.js";
+import classRoutes from "./classRoutes.js";
+import courseRoutes from "./courseRoutes.js";
+import dashboardRoutes from "./dashboardRoutes.js";
+import formationRoutes from "./formationRoutes.js";
+import messageRoutes from "./messageRoutes.js";
+import qrRoutes from "./qrRoutes.js";
+import quizRoutes from "./quizRoutes.js";
+import resourceRoutes from "./resourceRoutes.js";
+import announcementRoutes from "./announcementRoutes.js";
+import conversationRoutes from "./conversationRoutes.js";
+import lessonRoutes from "./lessonRoutes.js";
+import sectionRoutes from "./sectionRoutes.js";
+import sectionItemRoutes from "./sectionItemRoutes.js";
+import notificationRoutes from "./notificationRoutes.js";
+import progressRoutes from "./progressRoutes.js";
+import studentRoutes from "./studentRoutes.js";
+import userRoutes from "./userRoutes.js";
+import videoRoutes from "./videoRoutes.js";
+
+const router = Router();
+
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/students", studentRoutes);
+router.use("/classes", classRoutes);
+router.use("/courses", courseRoutes);
+router.use("/lessons", lessonRoutes);
+router.use("/resources", resourceRoutes);
+router.use("/videos", videoRoutes);
+router.use("/quizzes", quizRoutes);
+router.use("/announcements", announcementRoutes);
+router.use("/messages", messageRoutes);
+router.use("/conversations", conversationRoutes);
+router.use("/sections", sectionRoutes);
+router.use("/section-items", sectionItemRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/student/progress", progressRoutes);
+router.use("/formations", formationRoutes);
+router.use("/attendances", attendanceRoutes);
+router.use("/qr-codes", qrRoutes);
+router.use("/dashboard", dashboardRoutes);
+
+export default router;

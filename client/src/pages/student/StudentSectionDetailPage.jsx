@@ -4,6 +4,7 @@ import { EmptyState } from "../../components/common/EmptyState";
 import { Loader } from "../../components/common/Loader";
 import { PageHeader } from "../../components/common/PageHeader";
 import { resourceService } from "../../services/resourceService";
+import { getMediaUrl } from "../../utils/media";
 
 const getErrorMessage = (error) => {
   if (error?.response?.status === 403) {
@@ -115,7 +116,7 @@ export const StudentSectionDetailPage = () => {
             <h3 className="mb-4 text-lg font-semibold text-slate-950">Ressources et videos</h3>
             <div className="space-y-3">
               {resources.map((resource) => (
-                <a key={resource._id} href={resource.url || resource.filePath} target="_blank" rel="noreferrer" className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:bg-slate-50">
+                <a key={resource._id} href={getMediaUrl(resource.url || resource.filePath)} target="_blank" rel="noreferrer" className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:bg-slate-50">
                   <p className="text-sm font-semibold text-slate-900">{resource.title}</p>
                   <p className="mt-1 text-sm text-slate-600">{resource.type}</p>
                 </a>

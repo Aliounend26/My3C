@@ -3,6 +3,7 @@ import { CourseGroup } from "../models/CourseGroup.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { buildStudentCourseFilter, ensureStudentCanAccessCourse } from "../utils/studentAccess.js";
 import { getTeacherOwnedCourseIds, ensureTeacherOwnsCourse } from "../utils/teacherAccess.js";
+import { createNotifications, getCourseAudience } from "../utils/notificationHelper.js";
 
 export const getAnnouncements = asyncHandler(async (req, res) => {
   const filter = {};
@@ -39,6 +40,49 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
     await ensureTeacherOwnsCourse(req.user._id, req.body.course, res, "Vous ne pouvez pas creer une annonce pour ce cours");
   }
   const announcement = await Announcement.create({ ...req.body, author: req.user._id });
+  const { course, students, admins, superadmins } = await getCourseAudience(req.body.course);
+  await createNotifications([
+    ...students.map((student) => ({
+      userId: student._id,
+      role: student.role,
+      type: "announcement_posted",
+      priority: req.body.pinned ? "high" : "medium",
+      title: announcement.title,
+      message: `Nouvelle annonce publiee dans le cours ${course?.title || "concerne"}.`,
+      link: `/courses/${req.body.course}`,
+      metadata: { announcementId: announcement._id.toString(), courseId: req.body.course?.toString?.() || req.body.course }
+    })),
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "announcement_posted",
+      priority: "low",
+      title: "Annonce publiee",
+      message: `Votre annonce "${announcement.title}" est maintenant visible dans ${course?.title || "le cours"}.`,
+      link: "/announcements",
+      metadata: { announcementId: announcement._id.toString(), courseId: req.body.course?.toString?.() || req.body.course }
+    },
+    ...admins.map((admin) => ({
+      userId: admin._id,
+      role: admin.role,
+      type: "content_published",
+      priority: "low",
+      title: "Annonce de cours publiee",
+      message: `${req.user.firstName} ${req.user.lastName} a publie une annonce dans ${course?.title || "un cours"}.`,
+      link: "/courses",
+      metadata: { announcementId: announcement._id.toString(), courseId: req.body.course?.toString?.() || req.body.course }
+    })),
+    ...superadmins.map((superadmin) => ({
+      userId: superadmin._id,
+      role: superadmin.role,
+      type: "activity_important",
+      priority: "low",
+      title: "Activite pedagogique",
+      message: `Une annonce a ete publiee dans le cours ${course?.title || "concerne"}.`,
+      link: "/content",
+      metadata: { announcementId: announcement._id.toString(), courseId: req.body.course?.toString?.() || req.body.course }
+    }))
+  ]);
   res.status(201).json(await Announcement.findById(announcement._id).populate("course classRoom author"));
 });
 

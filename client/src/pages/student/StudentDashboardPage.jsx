@@ -7,6 +7,7 @@ import { ProgressBadge } from "../../components/common/ProgressBadge";
 import { StatCard } from "../../components/common/StatCard";
 import { resourceService } from "../../services/resourceService";
 import { useEffect, useMemo, useState } from "react";
+import { getMediaUrl } from "../../utils/media";
 
 const formatDateTime = (value) => new Date(value).toLocaleString("fr-FR");
 
@@ -235,7 +236,7 @@ export const StudentDashboardPage = () => {
               {data.latestResources.map((resource) => (
                 <a
                   key={resource._id}
-                  href={resource.url || resource.filePath}
+                  href={getMediaUrl(resource.url || resource.filePath)}
                   target="_blank"
                   rel="noreferrer"
                   className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:bg-slate-50"

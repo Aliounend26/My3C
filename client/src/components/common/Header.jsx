@@ -1,7 +1,8 @@
-import { Bell, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 import { useAuth } from "../../hooks/useAuth";
 import { getMediaUrl } from "../../utils/media";
+import { NotificationBell } from "./NotificationBell";
 
 export const Header = ({ title }) => {
   const { user, logout } = useAuth();
@@ -14,9 +15,7 @@ export const Header = ({ title }) => {
         <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
       </div>
       <div className="flex items-center gap-3">
-        <div className="rounded-full bg-slate-100 p-3 text-slate-500">
-          <Bell size={18} />
-        </div>
+        <NotificationBell />
         {user?.avatar ? (
           <img src={getMediaUrl(user.avatar)} alt={`${user.firstName} ${user.lastName}`} className="h-11 w-11 rounded-full object-cover" />
         ) : (

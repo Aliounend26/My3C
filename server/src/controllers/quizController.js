@@ -8,6 +8,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { buildStudentCourseFilter, ensureStudentCanAccessCourse } from "../utils/studentAccess.js";
 import { ensureTeacherOwnsCourse, getTeacherOwnedCourseIds } from "../utils/teacherAccess.js";
 import { syncCourseProgress, syncSectionProgress } from "../utils/progressHelpers.js";
+import { createNotifications, getCourseAudience } from "../utils/notificationHelper.js";
 
 const normalizeQuizPayload = (payload) => {
   const normalized = {
@@ -158,6 +159,51 @@ export const createQuiz = asyncHandler(async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   }
+  if (quiz.published) {
+    const { course, students, admins, superadmins } = await getCourseAudience(quiz.course);
+    await createNotifications([
+      ...students.map((student) => ({
+        userId: student._id,
+        role: student.role,
+        type: "quiz_available",
+        priority: "high",
+        title: "Nouveau quiz disponible",
+        message: `Le quiz "${quiz.title}" est maintenant disponible dans ${course?.title || "votre cours"}.`,
+        link: `/quizzes/${quiz._id}`,
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      })),
+      {
+        userId: req.user._id,
+        role: req.user.role,
+        type: "quiz_published",
+        priority: "low",
+        title: "Quiz publie",
+        message: `Le quiz "${quiz.title}" a ete publie avec succes.`,
+        link: "/quizzes",
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      },
+      ...admins.map((admin) => ({
+        userId: admin._id,
+        role: admin.role,
+        type: "quiz_published",
+        priority: "low",
+        title: "Quiz publie",
+        message: `${req.user.firstName} ${req.user.lastName} a publie le quiz "${quiz.title}".`,
+        link: "/courses",
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      })),
+      ...superadmins.map((superadmin) => ({
+        userId: superadmin._id,
+        role: superadmin.role,
+        type: "activity_important",
+        priority: "low",
+        title: "Quiz publie",
+        message: `Un nouveau quiz a ete publie dans ${course?.title || "un cours"}.`,
+        link: "/content",
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      }))
+    ]);
+  }
   res.status(201).json(await Quiz.findById(quiz._id).populate("course lesson section questions"));
 });
 
@@ -198,6 +244,34 @@ export const updateQuiz = asyncHandler(async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+  }
+  if (quiz.published) {
+    const wasPublished = existing.published !== false;
+    const { course, students } = await getCourseAudience(quiz.course);
+    await createNotifications([
+      ...students.map((student) => ({
+        userId: student._id,
+        role: student.role,
+        type: wasPublished ? "content_updated" : "quiz_available",
+        priority: "medium",
+        title: wasPublished ? "Quiz mis a jour" : "Nouveau quiz disponible",
+        message: wasPublished
+          ? `Le quiz "${quiz.title}" a ete mis a jour dans ${course?.title || "votre cours"}.`
+          : `Le quiz "${quiz.title}" est maintenant disponible dans ${course?.title || "votre cours"}.`,
+        link: `/quizzes/${quiz._id}`,
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      })),
+      {
+        userId: req.user._id,
+        role: req.user.role,
+        type: "quiz_published",
+        priority: "low",
+        title: "Quiz mis a jour",
+        message: `Les modifications du quiz "${quiz.title}" ont ete enregistrees.`,
+        link: "/quizzes",
+        metadata: { quizId: quiz._id.toString(), courseId: quiz.course?.toString?.() || quiz.course }
+      }
+    ]);
   }
 
   res.json(await Quiz.findById(quiz._id).populate("course lesson section questions"));
@@ -295,6 +369,43 @@ export const submitQuiz = asyncHandler(async (req, res) => {
     response.score = null;
     response.maxScore = quiz.maxScore;
   }
+
+  const { teacher } = await getCourseAudience(quiz.course?._id || quiz.course);
+  await createNotifications([
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "quiz_result",
+      priority: passed ? "medium" : "high",
+      title: passed ? "Quiz reussi" : "Resultat du quiz disponible",
+      message: `Vous avez obtenu ${Math.round(scoreRate)}% au quiz "${quiz.title}".`,
+      link: "/quiz-results",
+      metadata: {
+        quizId: quiz._id.toString(),
+        score,
+        maxScore: quiz.maxScore,
+        scoreRate: Math.round(scoreRate),
+        passed
+      }
+    },
+    teacher
+      ? {
+          userId: teacher._id,
+          role: teacher.role,
+          type: "quiz_submitted",
+          priority: "medium",
+          title: "Quiz soumis par un etudiant",
+          message: `${req.user.firstName} ${req.user.lastName} a soumis le quiz "${quiz.title}" avec ${Math.round(scoreRate)}%.`,
+          link: "/quizzes",
+          metadata: {
+            quizId: quiz._id.toString(),
+            studentId: req.user._id.toString(),
+            scoreRate: Math.round(scoreRate),
+            passed
+          }
+        }
+      : null
+  ]);
 
   res.json(response);
 });

@@ -12,6 +12,15 @@ import { CourseMaterial } from "../models/CourseMaterial.js";
 import { Message } from "../models/Message.js";
 import { VideoResource } from "../models/VideoResource.js";
 import { calculateAttendanceRate } from "../utils/attendance.js";
+import { getTeacherOwnedCourseIds } from "../utils/teacherAccess.js";
+
+const toId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value.toString === "function" && value.toString() !== "[object Object]") return value.toString();
+  if (value._id) return toId(value._id);
+  return "";
+};
 
 export const getAdminDashboardData = async () => {
   const [students, teachers, formations, classes, courseGroups, courses, attendances, quizResults] = await Promise.all([
@@ -117,26 +126,33 @@ export const getAdminDashboardData = async () => {
 };
 
 export const getTeacherDashboardData = async (teacherId) => {
-  const [courses, sections, quizzes, quizResults, announcements, attendances, resources, messages] = await Promise.all([
+  const teacherCourseIds = await getTeacherOwnedCourseIds(teacherId);
+
+  const [courses, sections, quizzes, announcements, attendances, resources, messages] = await Promise.all([
     CourseGroup.find({ teacher: teacherId }).populate("formation classRoom teacher"),
-    Section.find({}).populate("course"),
-    Quiz.find({}).populate("course"),
-    QuizResult.find({}).populate("quiz student"),
-    Announcement.find({}).populate("course classRoom author"),
+    Section.find({ course: { $in: teacherCourseIds } }).populate("course"),
+    Quiz.find({ course: { $in: teacherCourseIds } }).populate("course"),
+    Announcement.find({ course: { $in: teacherCourseIds } }).populate("course classRoom author"),
     Attendance.find().populate("course formation student"),
-    CourseMaterial.find({}).populate("course section lesson createdBy"),
+    CourseMaterial.find({ course: { $in: teacherCourseIds } }).populate("course section lesson createdBy"),
     Message.find({ from: teacherId }).populate("from to course")
   ]);
 
-  const teacherCourseIds = courses.map((course) => course._id.toString());
-  const teacherSections = sections.filter((section) => teacherCourseIds.includes(section.course?.toString()));
-  const teacherQuizzes = quizzes.filter((quiz) => teacherCourseIds.includes(quiz.course?.toString()));
+  const normalizedTeacherCourseIds = courses.map((course) => course._id.toString());
+  const teacherSections = sections.filter((section) => normalizedTeacherCourseIds.includes(toId(section.course)));
+  const teacherQuizzes = quizzes.filter((quiz) => normalizedTeacherCourseIds.includes(toId(quiz.course)));
   const teacherQuizIds = teacherQuizzes.map((quiz) => quiz._id.toString());
-  const teacherQuizResults = quizResults.filter((result) => teacherQuizIds.includes(result.quiz?._id?.toString?.() || result.quiz?.toString?.()));
-  const teacherAnnouncements = announcements.filter((announcement) => teacherCourseIds.includes(announcement.course?._id?.toString?.() || announcement.course?.toString?.()));
-  const teacherSessions = attendances.filter((attendance) => teacherCourseIds.includes(attendance.course?.courseGroupId || ""));
-  const teacherResources = resources.filter((resource) => teacherCourseIds.includes(resource.course?._id?.toString?.() || resource.course?.toString?.()));
-  const teacherMessages = messages.filter((message) => teacherCourseIds.includes(message.course?._id?.toString?.() || message.course?.toString?.()));
+  const [teacherQuizResults, teacherSessions] = await Promise.all([
+    QuizResult.find({ quiz: { $in: teacherQuizIds } }).populate({
+      path: "quiz",
+      populate: { path: "course" }
+    }).populate("student"),
+    Attendance.find().populate("course formation student")
+  ]);
+  const teacherAnnouncements = announcements.filter((announcement) => normalizedTeacherCourseIds.includes(toId(announcement.course)));
+  const teacherAttendanceRows = teacherSessions.filter((attendance) => normalizedTeacherCourseIds.includes(toId(attendance.course?.courseGroupId)));
+  const teacherResources = resources.filter((resource) => normalizedTeacherCourseIds.includes(toId(resource.course)));
+  const teacherMessages = messages.filter((message) => normalizedTeacherCourseIds.includes(toId(message.course)));
   const linkedClassrooms = courses.map((course) => course.classRoom).filter(Boolean);
   const studentIds = new Set(linkedClassrooms.flatMap((classRoom) => classRoom.students?.map((studentId) => studentId.toString()) || []));
   const averageSuccessRate = teacherQuizResults.length
@@ -162,9 +178,9 @@ export const getTeacherDashboardData = async (teacherId) => {
     latestQuizzes: teacherQuizzes.slice(0, 5),
     latestMessages: teacherMessages.slice(0, 5),
     attendanceSummary: {
-      present: teacherSessions.filter((attendance) => attendance.status === "present").length,
-      late: teacherSessions.filter((attendance) => attendance.status === "late").length,
-      absent: teacherSessions.filter((attendance) => attendance.status === "absent").length
+      present: teacherAttendanceRows.filter((attendance) => attendance.status === "present").length,
+      late: teacherAttendanceRows.filter((attendance) => attendance.status === "late").length,
+      absent: teacherAttendanceRows.filter((attendance) => attendance.status === "absent").length
     },
     announcements: teacherAnnouncements.slice(0, 5),
     studentPerformance: teacherQuizResults.slice(0, 8).map((result) => ({

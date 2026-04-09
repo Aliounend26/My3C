@@ -3,10 +3,12 @@ import api from "./api";
 export const resourceService = {
   get: async (endpoint) => (await api.get(endpoint)).data,
   post: async (endpoint, payload) => (await api.post(endpoint, payload)).data,
-  postForm: async (endpoint, formData) =>
+  postForm: async (endpoint, formData, config = {}) =>
     (
       await api.post(endpoint, formData, {
+        ...config,
         headers: {
+          ...(config.headers || {}),
           "Content-Type": "multipart/form-data"
         }
       })

@@ -32,8 +32,17 @@ const seed = async () => {
     QrCode.deleteMany({}),
     CourseSession.deleteMany({}),
     CourseGroup.deleteMany({}),
+    ClassRoom.deleteMany({}),
     User.deleteMany({}),
-    Formation.deleteMany({})
+    Formation.deleteMany({}),
+    Lesson.deleteMany({}),
+    Section.deleteMany({}),
+    CourseMaterial.deleteMany({}),
+    VideoResource.deleteMany({}),
+    QuizQuestion.deleteMany({}),
+    Quiz.deleteMany({}),
+    Announcement.deleteMany({}),
+    Message.deleteMany({})
   ]);
 
   const formations = await Formation.insertMany([
@@ -292,7 +301,9 @@ const seed = async () => {
 
   const lessons = await Lesson.insertMany([
     {
+      course: courseGroups[0]._id,
       section: sections[0]._id,
+      teacher: teacher._id,
       title: "Hooks et gestion d'état avancée",
       description: "Approfondir useReducer, useMemo, useCallback.",
       content: "Découvrez comment optimiser les performances et organiser un projet React.",
@@ -300,7 +311,9 @@ const seed = async () => {
       estimatedMinutes: 45
     },
     {
+      course: courseGroups[0]._id,
       section: sections[0]._id,
+      teacher: teacher._id,
       title: "Architecture composants et accessibilité",
       description: "Structurer un parcours d'apprentissage efficace.",
       content: "Créer un dashboard responsive, des formulaires et des flux utilisateur.",
@@ -308,7 +321,9 @@ const seed = async () => {
       estimatedMinutes: 40
     },
     {
+      course: courseGroups[0]._id,
       section: sections[1]._id,
+      teacher: teacher._id,
       title: "JWT, bcrypt et sécurité API",
       description: "Authentification token et bonnes pratiques server.",
       content: "Implémenter une API Node.js sécurisée avec Express et JWT.",

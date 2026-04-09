@@ -1,4 +1,3 @@
-import { Notification } from "../models/Notification.js";
 import { Quiz } from "../models/Quiz.js";
 import { QuizResult } from "../models/QuizResult.js";
 import { Section } from "../models/Section.js";
@@ -6,10 +5,7 @@ import { SectionItem } from "../models/SectionItem.js";
 import { StudentCourseProgress } from "../models/StudentCourseProgress.js";
 import { StudentProgress } from "../models/StudentProgress.js";
 import { StudentSectionProgress } from "../models/StudentSectionProgress.js";
-
-const createNotification = async (user, title, message, type = "success") => {
-  await Notification.create({ user, title, message, type });
-};
+import { createNotification } from "./notificationHelper.js";
 
 export const syncSectionProgress = async (studentId, lesson) => {
   const sectionId = lesson.section?._id || lesson.section;
@@ -105,10 +101,16 @@ export const syncSectionProgress = async (studentId, lesson) => {
 
   if (isCompleted && !existingProgress?.isCompleted) {
     await createNotification(
-      studentId,
-      `Chapitre "${section.title}" termine`,
-      `Vous avez complete la section "${section.title}" du cours "${courseTitle}". Continuez votre progression !`,
-      "success"
+      {
+        userId: studentId,
+        role: "student",
+        type: "chapter_completed",
+        priority: "medium",
+        title: `Chapitre "${section.title}" termine`,
+        message: `Vous avez complete la section "${section.title}" du cours "${courseTitle}". Continuez votre progression !`,
+        link: `/sections/${sectionId}`,
+        metadata: { sectionId: sectionId.toString(), courseId: courseId?.toString?.() || courseId }
+      }
     );
   }
 
@@ -139,10 +141,16 @@ export const syncCourseProgress = async (studentId, courseId, courseTitle = "vot
 
   if (progressPercent === 100 && (!existingProgress || existingProgress.progressPercent < 100)) {
     await createNotification(
-      studentId,
-      `Cours "${courseTitle}" termine`,
-      `Felicitations ! Vous avez termine tous les chapitres du cours "${courseTitle}". Continuez sur un nouveau parcours.`,
-      "success"
+      {
+        userId: studentId,
+        role: "student",
+        type: "course_completed",
+        priority: "high",
+        title: `Cours "${courseTitle}" termine`,
+        message: `Felicitations ! Vous avez termine tous les chapitres du cours "${courseTitle}". Continuez sur un nouveau parcours.`,
+        link: `/courses/${courseId?.toString?.() || courseId}`,
+        metadata: { courseId: courseId?.toString?.() || courseId }
+      }
     );
   }
 

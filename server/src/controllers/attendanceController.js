@@ -6,6 +6,7 @@ import { buildAttendancePayload, buildQrAttendancePayload, buildStudentAttendanc
 import { getAttendanceWindow } from "../utils/attendance.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ensureStudentCanAccessCourse } from "../utils/studentAccess.js";
+import { createNotification, createNotifications } from "../utils/notificationHelper.js";
 
 const parseQrPayload = (rawValue = "") => {
   if (!rawValue || typeof rawValue !== "string") {
@@ -108,6 +109,29 @@ export const createManualAttendance = asyncHandler(async (req, res) => {
     { upsert: true, new: true, runValidators: true }
   ).populate("student formation course");
 
+  await createNotifications([
+    {
+      userId: studentId,
+      role: "student",
+      type: "attendance_marked",
+      priority: "medium",
+      title: "Presence mise a jour",
+      message: `Votre presence pour "${course.title}" a ete enregistree avec le statut ${status}.`,
+      link: "/attendances",
+      metadata: { attendanceId: attendance._id.toString(), courseId: course._id.toString(), status }
+    },
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Presence enregistree",
+      message: `La presence de l'etudiant a ete mise a jour pour "${course.title}".`,
+      link: "/attendances",
+      metadata: { attendanceId: attendance._id.toString(), courseId: course._id.toString(), status }
+    }
+  ]);
+
   res.status(201).json(attendance);
 });
 
@@ -146,6 +170,17 @@ export const createStudentAttendance = asyncHandler(async (req, res) => {
     buildStudentAttendancePayload(req.user._id, course, currentTime),
     { upsert: true, new: true, runValidators: true }
   ).populate("student formation course");
+
+  await createNotification({
+    userId: req.user._id,
+    role: req.user.role,
+    type: "attendance_marked",
+    priority: "medium",
+    title: "Presence enregistree",
+    message: `Votre presence pour "${course.title}" a bien ete enregistree.`,
+    link: "/attendances",
+    metadata: { attendanceId: attendance._id.toString(), courseId: course._id.toString(), source: "manual-student" }
+  });
 
   res.status(201).json(attendance);
 });
@@ -196,6 +231,16 @@ export const scanAttendance = asyncHandler(async (req, res) => {
   }
 
   const attendance = await Attendance.create(buildQrAttendancePayload(req.user._id, course, scannedAt, qrCode._id));
+  await createNotification({
+    userId: req.user._id,
+    role: req.user.role,
+    type: "attendance_marked",
+    priority: "medium",
+    title: "Presence enregistree",
+    message: `Votre presence a ete validee avec succes pour "${course.title}".`,
+    link: "/attendances",
+    metadata: { attendanceId: attendance._id.toString(), courseId: course._id.toString(), source: "qr" }
+  });
   res.status(201).json(await attendance.populate("student formation course qrCode"));
 });
 

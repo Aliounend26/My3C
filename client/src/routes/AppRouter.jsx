@@ -20,6 +20,7 @@ import { StudentsPage } from "../pages/admin/StudentsPage";
 import { AdminUsersPage } from "../pages/admin/AdminUsersPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
+import { NotificationsPage } from "../pages/NotificationsPage";
 import { PublicHomePage } from "../pages/PublicHomePage";
 import { QRAttendancePage } from "../pages/QRAttendancePage";
 import { MyAttendancesPage } from "../pages/student/MyAttendancesPage";
@@ -82,6 +83,7 @@ export const AppRouter = () => (
         <Route path="attendances" element={<AttendancesPage />} />
         <Route path="content" element={<SuperAdminContentPage />} />
         <Route path="statistics" element={<SuperAdminStatisticsPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<AdminProfilePage />} />
       </Route>
     </Route>
@@ -100,6 +102,7 @@ export const AppRouter = () => (
         <Route path="attendances" element={<AttendancesPage />} />
         <Route path="qr-codes" element={<QRCodePage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<AdminProfilePage />} />
       </Route>
     </Route>
@@ -116,6 +119,7 @@ export const AppRouter = () => (
         <Route path="quizzes" element={<TeacherQuizzesPage />} />
         <Route path="announcements" element={<TeacherAnnouncementsPage />} />
         <Route path="messages" element={<TeacherMessagesPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
     </Route>
@@ -135,6 +139,7 @@ export const AppRouter = () => (
         <Route path="attendances" element={<MyAttendancesPage />} />
         <Route path="scanner" element={<ScannerPage />} />
         <Route path="progress" element={<ProgressPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
       </Route>
     </Route>
 

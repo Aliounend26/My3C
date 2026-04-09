@@ -20,6 +20,13 @@ const initialForm = {
   isActive: true
 };
 
+const initialFilters = {
+  formation: "",
+  course: "",
+  student: "",
+  status: ""
+};
+
 export const StudentsPage = () => {
   const [rows, setRows] = useState([]);
   const [formations, setFormations] = useState([]);
@@ -30,8 +37,34 @@ export const StudentsPage = () => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sorter, setSorter] = useState("name-asc");
+  const [filters, setFilters] = useState(initialFilters);
 
-  const sortedRows = useMemo(() => sortRows(rows, sorter), [rows, sorter]);
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        const matchesFormation = !filters.formation || row.formations?.some((formation) => formation._id === filters.formation);
+        const matchesCourse = !filters.course || row.assignedCourses?.some((course) => course._id === filters.course);
+        const matchesStudent = !filters.student || row._id === filters.student;
+        const matchesStatus =
+          !filters.status ||
+          (filters.status === "active" && row.isActive) ||
+          (filters.status === "inactive" && !row.isActive);
+
+        return matchesFormation && matchesCourse && matchesStudent && matchesStatus;
+      }),
+    [filters, rows]
+  );
+
+  const sortedRows = useMemo(() => sortRows(filteredRows, sorter), [filteredRows, sorter]);
+
+  const buildQueryString = (query) => {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : "";
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -51,6 +84,10 @@ export const StudentsPage = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const downloadExcel = async () => {
+    await resourceService.download(`/students/export${buildQueryString(filters)}`, "etudiants.xlsx");
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -88,6 +125,9 @@ export const StudentsPage = () => {
         description="Creez les comptes etudiants, rattachez-les aux formations, classes et cours, puis suivez leur organisation pedagogique."
         actions={
           <>
+            <button className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white" onClick={downloadExcel}>
+              Telecharger Excel
+            </button>
             <SortSelect
               value={sorter}
               onChange={setSorter}
@@ -111,6 +151,41 @@ export const StudentsPage = () => {
           </>
         }
       />
+
+      <div className="glass-card grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
+        <select className="rounded-2xl border border-slate-200 px-4 py-3" value={filters.formation} onChange={(event) => setFilters((current) => ({ ...current, formation: event.target.value, student: "" }))}>
+          <option value="">Toutes les formations</option>
+          {formations.map((formation) => (
+            <option key={formation._id} value={formation._id}>
+              {formation.name}
+            </option>
+          ))}
+        </select>
+
+        <select className="rounded-2xl border border-slate-200 px-4 py-3" value={filters.course} onChange={(event) => setFilters((current) => ({ ...current, course: event.target.value, student: "" }))}>
+          <option value="">Tous les cours</option>
+          {courses.map((course) => (
+            <option key={course._id} value={course._id}>
+              {course.title}
+            </option>
+          ))}
+        </select>
+
+        <select className="rounded-2xl border border-slate-200 px-4 py-3" value={filters.student} onChange={(event) => setFilters((current) => ({ ...current, student: event.target.value }))}>
+          <option value="">Tous les etudiants</option>
+          {filteredRows.map((student) => (
+            <option key={student._id} value={student._id}>
+              {student.firstName} {student.lastName}
+            </option>
+          ))}
+        </select>
+
+        <select className="rounded-2xl border border-slate-200 px-4 py-3" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+          <option value="">Tous les statuts</option>
+          <option value="active">Actifs</option>
+          <option value="inactive">Inactifs</option>
+        </select>
+      </div>
 
       <DataTable
         columns={[

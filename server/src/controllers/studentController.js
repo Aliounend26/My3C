@@ -1,3 +1,4 @@
+import XLSX from "xlsx";
 import { User } from "../models/User.js";
 import { ClassRoom } from "../models/ClassRoom.js";
 import { Attendance } from "../models/Attendance.js";
@@ -7,6 +8,32 @@ import { CourseGroup } from "../models/CourseGroup.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { calculateAttendanceRate } from "../utils/attendance.js";
 import { getTeacherOwnedCourseIds } from "../utils/teacherAccess.js";
+
+const buildAdminStudentFilter = (query = {}) => {
+  const filter = { role: "student" };
+
+  if (query.formation) {
+    filter.formations = query.formation;
+  }
+
+  if (query.course) {
+    filter.assignedCourses = query.course;
+  }
+
+  if (query.student) {
+    filter._id = query.student;
+  }
+
+  if (query.status === "active") {
+    filter.isActive = true;
+  }
+
+  if (query.status === "inactive") {
+    filter.isActive = false;
+  }
+
+  return filter;
+};
 
 const buildTeacherStudentContext = async (teacherId) => {
   const courseIds = await getTeacherOwnedCourseIds(teacherId);
@@ -161,13 +188,41 @@ export const getStudents = asyncHandler(async (req, res) => {
     return;
   }
 
-  const filter = { role: "student" };
-
-  if (req.query.formation) {
-    filter.formations = req.query.formation;
-  }
+  const filter = buildAdminStudentFilter(req.query);
 
   res.json(await User.find(filter).select("-password").populate("formations classrooms assignedCourses").sort({ createdAt: -1 }));
+});
+
+export const exportStudents = asyncHandler(async (req, res) => {
+  const filter = buildAdminStudentFilter(req.query);
+  const students = await User.find(filter).select("-password").populate("formations classrooms assignedCourses").sort({ lastName: 1, firstName: 1 });
+
+  const rows = students.map((student) => ({
+    Prenom: student.firstName || "",
+    Nom: student.lastName || "",
+    Email: student.email || "",
+    Telephone: student.phone || "",
+    Matricule: student.matricule || "",
+    Formations: student.formations?.map((formation) => formation.name).join(", ") || "",
+    Classes: student.classrooms?.map((classroom) => classroom.name).join(", ") || "",
+    Cours: student.assignedCourses?.map((course) => course.title).join(", ") || "",
+    Etat: student.isActive ? "Actif" : "Inactif",
+    "Date creation": student.createdAt ? new Date(student.createdAt).toLocaleString("fr-FR") : ""
+  }));
+
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: "Aucun etudiant pour les filtres selectionnes" }]);
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Etudiants");
+
+  const fileBuffer = XLSX.write(workbook, {
+    type: "buffer",
+    bookType: "xlsx"
+  });
+
+  const dateSuffix = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="etudiants-${dateSuffix}.xlsx"`);
+  res.send(fileBuffer);
 });
 
 export const getStudentById = asyncHandler(async (req, res) => {

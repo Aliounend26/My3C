@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "../utils/notificationHelper.js";
 
 const signToken = (id, role) =>
   jwt.sign({ id, role }, process.env.JWT_SECRET, {
@@ -56,6 +57,16 @@ export const updateMe = asyncHandler(async (req, res) => {
   });
 
   await user.save();
+  await createNotification({
+    userId: user._id,
+    role: user.role,
+    type: "profile_updated",
+    priority: "low",
+    title: "Profil mis a jour",
+    message: "Vos informations personnelles ont ete mises a jour avec succes.",
+    link: "/profile",
+    metadata: { userId: user._id.toString() }
+  });
   res.json(await User.findById(user._id).select("-password").populate("formations"));
 });
 
@@ -77,6 +88,16 @@ export const updateMyPassword = asyncHandler(async (req, res) => {
 
   user.password = newPassword;
   await user.save();
+  await createNotification({
+    userId: user._id,
+    role: user.role,
+    type: "password_updated",
+    priority: "medium",
+    title: "Mot de passe modifie",
+    message: "Votre mot de passe a ete modifie avec succes.",
+    link: "/profile",
+    metadata: { userId: user._id.toString() }
+  });
 
   res.json({ success: true, message: "Mot de passe mis a jour" });
 });
@@ -96,6 +117,16 @@ export const uploadMyAvatar = asyncHandler(async (req, res) => {
 
   user.avatar = `/uploads/avatars/${req.file.filename}`;
   await user.save();
+  await createNotification({
+    userId: user._id,
+    role: user.role,
+    type: "profile_updated",
+    priority: "low",
+    title: "Photo de profil mise a jour",
+    message: "Votre photo de profil a ete mise a jour.",
+    link: "/profile",
+    metadata: { userId: user._id.toString() }
+  });
 
   res.json(await User.findById(user._id).select("-password").populate("formations"));
 });

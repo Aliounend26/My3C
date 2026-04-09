@@ -6,6 +6,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ensureStudentCanAccessCourse } from "../utils/studentAccess.js";
 import { getTeacherOwnedCourseIds } from "../utils/teacherAccess.js";
+import { createNotification, createNotifications } from "../utils/notificationHelper.js";
 
 const populateMessage = (query) => query.populate("conversation from to course classRoom");
 
@@ -181,6 +182,28 @@ export const createMessage = asyncHandler(async (req, res) => {
       deliveryType: "direct",
       conversationType: "direct"
     });
+    await createNotifications([
+      {
+        userId: recipient._id,
+        role: recipient.role,
+        type: "message_received",
+        priority: "medium",
+        title: "Nouveau message de votre formateur",
+        message: `${req.user.firstName} ${req.user.lastName} vous a envoye un message.`,
+        link: "/messages",
+        metadata: { courseId: courseId?.toString?.() || courseId, fromUserId: req.user._id.toString() }
+      },
+      {
+        userId: req.user._id,
+        role: req.user.role,
+        type: "message_sent",
+        priority: "low",
+        title: "Message envoye",
+        message: `Votre message a bien ete envoye a ${recipient.firstName} ${recipient.lastName}.`,
+        link: "/messages",
+        metadata: { toUserId: recipient._id.toString(), courseId: courseId?.toString?.() || courseId }
+      }
+    ]);
     res.status(201).json(messages[0]);
     return;
   }
@@ -197,6 +220,31 @@ export const createMessage = asyncHandler(async (req, res) => {
     from: req.user._id,
     conversation: conversation?._id
   });
+  const recipient = await User.findById(req.body.to).select("_id role firstName lastName");
+  if (recipient) {
+    await createNotifications([
+      {
+        userId: recipient._id,
+        role: recipient.role,
+        type: "message_received",
+        priority: "medium",
+        title: "Nouveau message recu",
+        message: `${req.user.firstName} ${req.user.lastName} vous a envoye un message.`,
+        link: "/messages",
+        metadata: { fromUserId: req.user._id.toString(), courseId: req.body.course || "" }
+      },
+      {
+        userId: req.user._id,
+        role: req.user.role,
+        type: "message_sent",
+        priority: "low",
+        title: "Message envoye",
+        message: `Votre message a bien ete envoye a ${recipient.firstName} ${recipient.lastName}.`,
+        link: "/messages",
+        metadata: { toUserId: recipient._id.toString(), courseId: req.body.course || "" }
+      }
+    ]);
+  }
   res.status(201).json(await populateMessage(Message.findById(message._id)));
 });
 
@@ -211,6 +259,28 @@ export const createTeacherStudentMessage = asyncHandler(async (req, res) => {
     deliveryType: "direct",
     conversationType: "direct"
   });
+  await createNotifications([
+    {
+      userId: recipient._id,
+      role: recipient.role,
+      type: "message_received",
+      priority: "medium",
+      title: "Nouveau message de votre formateur",
+      message: `${req.user.firstName} ${req.user.lastName} vous a envoye un message.`,
+      link: "/messages",
+      metadata: { fromUserId: req.user._id.toString(), courseId: courseId?.toString?.() || courseId }
+    },
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "message_sent",
+      priority: "low",
+      title: "Message envoye",
+      message: `Votre message a bien ete envoye a ${recipient.firstName} ${recipient.lastName}.`,
+      link: "/messages",
+      metadata: { toUserId: recipient._id.toString(), courseId: courseId?.toString?.() || courseId }
+    }
+  ]);
   res.status(201).json({ count: messages.length, messages });
 });
 
@@ -233,6 +303,28 @@ export const createTeacherCourseMessage = asyncHandler(async (req, res) => {
     deliveryType: "course",
     conversationType: "course"
   });
+  await createNotifications([
+    ...recipients.map((recipient) => ({
+      userId: recipient._id,
+      role: "student",
+      type: "class_message_sent",
+      priority: "medium",
+      title: `Nouveau message pour le cours ${course.title}`,
+      message: `${req.user.firstName} ${req.user.lastName} a envoye un message collectif pour votre cours.`,
+      link: "/messages",
+      metadata: { courseId: course._id.toString(), teacherId: req.user._id.toString() }
+    })),
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "class_message_sent",
+      priority: "low",
+      title: "Message collectif envoye",
+      message: `Votre message a ete envoye aux etudiants du cours ${course.title}.`,
+      link: "/messages",
+      metadata: { courseId: course._id.toString(), recipientCount: recipients.length }
+    }
+  ]);
 
   res.status(201).json({ count: messages.length, messages });
 });
@@ -255,6 +347,28 @@ export const createTeacherClassMessage = asyncHandler(async (req, res) => {
     deliveryType: "class",
     conversationType: "class"
   });
+  await createNotifications([
+    ...recipients.map((recipient) => ({
+      userId: recipient._id,
+      role: "student",
+      type: "class_message_sent",
+      priority: "medium",
+      title: `Nouveau message pour la classe ${classRoom.name}`,
+      message: `${req.user.firstName} ${req.user.lastName} a envoye un message a votre classe.`,
+      link: "/messages",
+      metadata: { classRoomId: classRoom._id.toString(), teacherId: req.user._id.toString() }
+    })),
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "class_message_sent",
+      priority: "low",
+      title: "Message de classe envoye",
+      message: `Votre message a ete envoye aux etudiants de la classe ${classRoom.name}.`,
+      link: "/messages",
+      metadata: { classRoomId: classRoom._id.toString(), recipientCount: recipients.length }
+    }
+  ]);
 
   res.status(201).json({ count: messages.length, messages });
 });

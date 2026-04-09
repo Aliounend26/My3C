@@ -5,6 +5,7 @@ import { Loader } from "../../components/common/Loader";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ProgressBadge } from "../../components/common/ProgressBadge";
 import { resourceService } from "../../services/resourceService";
+import { getMediaUrl } from "../../utils/media";
 
 const getErrorMessage = (error) => {
   if (error?.response?.status === 403) {
@@ -33,6 +34,7 @@ export const StudentCourseDetailPage = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [results, setResults] = useState([]);
   const [sectionProgress, setSectionProgress] = useState([]);
+  const [activeView, setActiveView] = useState("content");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -66,6 +68,7 @@ export const StudentCourseDetailPage = () => {
         setResults(resultsResult.status === "fulfilled" ? resultsResult.value : []);
         setSectionProgress(progressResult.status === "fulfilled" ? progressResult.value : []);
         setSelectedSectionId(nextSections[0]?._id || "");
+        setActiveView("content");
       } catch (loadError) {
         console.error("Erreur chargement du cours :", loadError);
         setCourse(null);
@@ -114,6 +117,32 @@ export const StudentCourseDetailPage = () => {
     () => videos.filter((video) => !selectedSectionId || video.section?._id === selectedSectionId || video.section === selectedSectionId),
     [videos, selectedSectionId]
   );
+
+  const courseLevelResources = useMemo(
+    () => filteredResources.filter((resource) => !(resource.lesson?._id || resource.lesson)),
+    [filteredResources]
+  );
+
+  const lessonResourceGroups = useMemo(() => {
+    const groups = new Map();
+
+    filteredResources.forEach((resource) => {
+      const lessonId = resource.lesson?._id || resource.lesson;
+      if (!lessonId) return;
+
+      if (!groups.has(lessonId)) {
+        groups.set(lessonId, {
+          lessonId,
+          lessonTitle: resource.lesson?.title || "Lecon",
+          resources: []
+        });
+      }
+
+      groups.get(lessonId).resources.push(resource);
+    });
+
+    return Array.from(groups.values());
+  }, [filteredResources]);
 
   const sectionQuizIds = useMemo(
     () => items.filter((item) => item.type === "quiz" && item.quiz?._id).map((item) => item.quiz._id),
@@ -204,7 +233,10 @@ export const StudentCourseDetailPage = () => {
                 return (
                   <button
                     key={section._id}
-                    onClick={() => setSelectedSectionId(section._id)}
+                    onClick={() => {
+                      setSelectedSectionId(section._id);
+                      setActiveView("content");
+                    }}
                     className={`w-full rounded-2xl px-4 py-4 text-left transition ${
                       selectedSectionId === section._id ? "bg-brand-500 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
@@ -242,93 +274,152 @@ export const StudentCourseDetailPage = () => {
                   </Link>
                 </div>
 
-                <div className="mt-5 space-y-3">
-                  {items.length ? (
-                    items.map((item) => {
-                      const lessonId = item.lesson?._id || item.lesson;
-
-                      return item.type === "lesson" ? (
-                        <Link
-                          key={item._id}
-                          to={lessonId ? `/student/lessons/${lessonId}` : "#"}
-                          className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:border-brand-500 hover:bg-slate-50"
-                        >
-                          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Lecon · ordre {item.order}</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">{item.lesson?.title}</p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {item.lesson?.description || getPlainTextPreview(item.lesson?.content) || "Lecon disponible dans votre parcours."}
-                          </p>
-                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-400">{item.lesson?.estimatedMinutes || 0} min</p>
-                        </Link>
-                      ) : (
-                        <Link
-                          key={item._id}
-                          to={`/student/quizzes/${item.quiz?._id || item.quiz}`}
-                          className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:border-brand-500 hover:bg-slate-50"
-                        >
-                          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quiz · ordre {item.order}</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">{item.quiz?.title}</p>
-                          <p className="mt-1 text-sm text-slate-600">{item.quiz?.description || "Evaluation integree a cette section."}</p>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    <EmptyState title="Aucun item" description="Cette section ne contient pas encore d'item consultable." />
-                  )}
-                </div>
-              </section>
-
-              <section className="grid gap-6 xl:grid-cols-2">
-                <div className="glass-card p-5">
-                  <h3 className="mb-4 text-lg font-semibold text-slate-950">Supports de cours</h3>
-                  {filteredResources.length ? (
-                    <div className="space-y-3">
-                      {filteredResources.map((resource) => (
-                        <a
-                          key={resource._id}
-                          href={resource.url || resource.filePath}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:bg-slate-50"
-                        >
-                          <p className="text-sm font-semibold text-slate-900">{resource.title}</p>
-                          <p className="mt-1 text-sm text-slate-600">{resource.lesson?.title || selectedSection.title}</p>
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState title="Aucun support" description="Aucun support de cours n'est encore publie pour cette section." />
-                  )}
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveView("content")}
+                    className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                      activeView === "content" ? "bg-brand-500 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Contenus
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveView("resources")}
+                    className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                      activeView === "resources" ? "bg-brand-500 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Ressources
+                  </button>
                 </div>
 
-                <div className="glass-card p-5">
-                  <h3 className="mb-4 text-lg font-semibold text-slate-950">Videos integrees</h3>
-                  {filteredVideos.length ? (
-                    <div className="space-y-4">
-                      {filteredVideos.map((video) => (
-                        <div key={video._id} className="overflow-hidden rounded-3xl border border-slate-200">
-                          <div className="aspect-video bg-slate-900">
-                            <iframe
-                              width="100%"
-                              height="100%"
-                              src={video.embedUrl}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              title={video.title}
-                            />
+                {activeView === "content" ? (
+                  <div className="mt-5 space-y-3">
+                    {items.length ? (
+                      items.map((item) => {
+                        const lessonId = item.lesson?._id || item.lesson;
+
+                        return item.type === "lesson" ? (
+                          <Link
+                            key={item._id}
+                            to={lessonId ? `/student/lessons/${lessonId}` : "#"}
+                            className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:border-brand-500 hover:bg-slate-50"
+                          >
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Lecon · ordre {item.order}</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">{item.lesson?.title}</p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {item.lesson?.description || getPlainTextPreview(item.lesson?.content) || "Lecon disponible dans votre parcours."}
+                            </p>
+                            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-400">{item.lesson?.estimatedMinutes || 0} min</p>
+                          </Link>
+                        ) : (
+                          <Link
+                            key={item._id}
+                            to={`/student/quizzes/${item.quiz?._id || item.quiz}`}
+                            className="block rounded-3xl border border-slate-200 px-4 py-4 transition hover:border-brand-500 hover:bg-slate-50"
+                          >
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quiz · ordre {item.order}</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">{item.quiz?.title}</p>
+                            <p className="mt-1 text-sm text-slate-600">{item.quiz?.description || "Evaluation integree a cette section."}</p>
+                          </Link>
+                        );
+                      })
+                    ) : (
+                      <EmptyState title="Aucun item" description="Cette section ne contient pas encore d'item consultable." />
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-5">
+                    {courseLevelResources.length ? (
+                      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Ressources generales</p>
+                        <div className="mt-3 space-y-3">
+                          {courseLevelResources.map((resource) => {
+                            const resourceUrl = getMediaUrl(resource.url || resource.filePath);
+                            return (
+                              <div key={resource._id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                                <p className="text-sm font-semibold text-slate-900">{resource.title}</p>
+                                <p className="mt-1 text-sm text-slate-600">{resource.section?.title || selectedSection.title}</p>
+                                <div className="mt-3 flex flex-wrap gap-3">
+                                  <a href={resourceUrl} target="_blank" rel="noreferrer" className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                                    Ouvrir
+                                  </a>
+                                  <a href={resourceUrl} download className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                                    Telecharger
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {lessonResourceGroups.length ? (
+                      lessonResourceGroups.map((group) => (
+                        <div key={group.lessonId} className="rounded-3xl border border-slate-200 bg-white p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Ressources de lecon</p>
+                              <p className="mt-1 text-lg font-semibold text-slate-950">{group.lessonTitle}</p>
+                            </div>
+                            <Link to={`/student/lessons/${group.lessonId}`} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+                              Voir la lecon
+                            </Link>
                           </div>
-                          <div className="p-4">
-                            <p className="text-sm font-semibold text-slate-900">{video.title}</p>
-                            <p className="mt-1 text-sm text-slate-600">{video.description || "Video pedagogique integree au parcours."}</p>
+                          <div className="mt-4 space-y-3">
+                            {group.resources.map((resource) => {
+                              const resourceUrl = getMediaUrl(resource.url || resource.filePath);
+                              return (
+                                <div key={resource._id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                  <p className="text-sm font-semibold text-slate-900">{resource.title}</p>
+                                  <p className="mt-1 text-sm text-slate-600">{resource.type}</p>
+                                  <div className="mt-3 flex flex-wrap gap-3">
+                                    <a href={resourceUrl} target="_blank" rel="noreferrer" className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                                      Ouvrir
+                                    </a>
+                                    <a href={resourceUrl} download className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                                      Telecharger
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState title="Aucune video" description="Aucune video integree pour cette section." />
-                  )}
-                </div>
+                      ))
+                    ) : null}
+
+                    {!courseLevelResources.length && !lessonResourceGroups.length ? (
+                      <EmptyState title="Aucune ressource" description="Aucune ressource n'est encore reliee a cette section ou a ses lecons." />
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              <section className="glass-card p-5">
+                <h3 className="mb-4 text-lg font-semibold text-slate-950">Supports de cours</h3>
+                {filteredResources.length ? (
+                  <div className="space-y-3">
+                    {filteredResources.map((resource) => (
+                      <a
+                        key={resource._id}
+                        href={getMediaUrl(resource.url || resource.filePath)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:bg-slate-50"
+                      >
+                        <p className="text-sm font-semibold text-slate-900">{resource.title}</p>
+                        <p className="mt-1 text-sm text-slate-600">{resource.lesson?.title || selectedSection.title}</p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.16em] text-brand-500">Ouvrir ou telecharger</p>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState title="Aucun support" description="Aucun support de cours n'est encore publie pour cette section." />
+                )}
               </section>
 
               <section className="glass-card p-5">

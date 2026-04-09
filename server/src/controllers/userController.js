@@ -1,6 +1,7 @@
 import { User } from "../models/User.js";
 import { CourseGroup } from "../models/CourseGroup.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotifications, getUsersByRoles } from "../utils/notificationHelper.js";
 
 const populateUser = (query) =>
   query.select("-password").populate("formations classrooms").populate({
@@ -141,6 +142,42 @@ export const createUser = asyncHandler(async (req, res) => {
     await syncTeacherAssignments(user._id, assignedCourses);
   }
 
+  const superadmins = await getUsersByRoles("superadmin");
+  await createNotifications([
+    {
+      userId: user._id,
+      role: user.role,
+      type: "account_created",
+      priority: "medium",
+      title: "Compte cree",
+      message: `Votre compte My 3C a ete cree avec le role ${user.role}.`,
+      link: "/profile",
+      metadata: { userId: user._id.toString() }
+    },
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Utilisateur cree",
+      message: `${user.firstName} ${user.lastName} a ete cree avec succes.`,
+      link: req.user.role === "teacher" ? "/profile" : "/users",
+      metadata: { targetUserId: user._id.toString(), targetRole: user.role }
+    },
+    ...superadmins
+      .filter((superadmin) => superadmin._id.toString() !== req.user._id.toString())
+      .map((superadmin) => ({
+        userId: superadmin._id,
+        role: superadmin.role,
+        type: "activity_important",
+        priority: ["admin", "teacher"].includes(user.role) ? "medium" : "low",
+        title: "Nouveau compte cree",
+        message: `${req.user.firstName} ${req.user.lastName} a cree un compte ${user.role} : ${user.firstName} ${user.lastName}.`,
+        link: "/users",
+        metadata: { targetUserId: user._id.toString(), targetRole: user.role }
+      }))
+  ]);
+
   res.status(201).json(await populateUser(User.findById(user._id)));
 });
 
@@ -172,6 +209,8 @@ export const updateUser = asyncHandler(async (req, res) => {
     throw new Error("Un admin peut uniquement gerer des comptes etudiant ou formateur");
   }
 
+  const previousActive = user.isActive;
+  const previousRole = user.role;
   const allowed = ["firstName", "lastName", "email", "phone", "specialty", "role", "matricule", "formations", "classrooms", "assignedCourses", "isActive"];
   allowed.forEach((field) => {
     if (req.body[field] !== undefined) {
@@ -192,6 +231,32 @@ export const updateUser = asyncHandler(async (req, res) => {
   if (user.role === "teacher") {
     await syncTeacherAssignments(user._id, user.assignedCourses || []);
   }
+
+  await createNotifications([
+    {
+      userId: user._id,
+      role: user.role,
+      type: user.isActive !== previousActive ? "account_status_changed" : "profile_updated",
+      priority: user.isActive !== previousActive ? "medium" : "low",
+      title: user.isActive !== previousActive ? "Statut du compte mis a jour" : "Compte mis a jour",
+      message:
+        user.isActive !== previousActive
+          ? `Votre compte est maintenant ${user.isActive ? "actif" : "desactive"}.`
+          : "Les informations de votre compte ont ete mises a jour par l'administration.",
+      link: "/profile",
+      metadata: { userId: user._id.toString(), previousRole, currentRole: user.role }
+    },
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Utilisateur mis a jour",
+      message: `Le compte de ${user.firstName} ${user.lastName} a ete mis a jour.`,
+      link: "/users",
+      metadata: { targetUserId: user._id.toString(), previousRole, currentRole: user.role }
+    }
+  ]);
 
   res.json(await populateUser(User.findById(user._id)));
 });

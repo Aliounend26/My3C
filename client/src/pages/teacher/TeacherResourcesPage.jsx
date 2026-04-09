@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Upload } from "lucide-react";
 import { StatCard } from "../../components/common/StatCard";
 import { DataTable } from "../../components/tables/DataTable";
 import { Modal } from "../../components/common/Modal";
@@ -18,6 +19,8 @@ export const TeacherResourcesPage = () => {
     url: ""
   });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
@@ -56,6 +59,7 @@ export const TeacherResourcesPage = () => {
       setResources(res);
       setFormData({ title: "", type: "pdf", url: "" });
       setSelectedFile(null);
+      setUploadProgress(0);
     } catch (error) {
       console.error("Erreur:", error);
     }
@@ -64,6 +68,8 @@ export const TeacherResourcesPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      setUploading(true);
+      setUploadProgress(selectedFile ? 0 : 100);
       const formDataObj = new FormData();
       formDataObj.append("title", formData.title);
       formDataObj.append("type", formData.type);
@@ -75,14 +81,22 @@ export const TeacherResourcesPage = () => {
         formDataObj.append("url", formData.url);
       }
 
-      await resourceService.post("/resources", formDataObj);
+      await resourceService.postForm("/resources", formDataObj, {
+        onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) return;
+          setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+        }
+      });
       setShowModal(false);
       setFormData({ title: "", type: "pdf", url: "" });
       setSelectedFile(null);
+      setUploadProgress(0);
       fetchResources();
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
       alert("Erreur: " + (error.response?.data?.message || error.message));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -110,27 +124,29 @@ export const TeacherResourcesPage = () => {
 
   const columns = [
     {
-      header: "Ressource",
-      cell: (row) => (
+      key: "title",
+      label: "Ressource",
+      render: (row) => (
         <div className="flex items-center gap-2">
           <span>{getResourceIcon(row.type)}</span>
           <span className="font-medium">{row.title}</span>
         </div>
       )
     },
-    { header: "Type", accessor: "type", width: "100px" },
+    { key: "type", label: "Type" },
     {
-      header: "URL / Chemin",
-      cell: (row) => (
+      key: "path",
+      label: "URL / Chemin",
+      render: (row) => (
         <a href={row.url || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-sm truncate max-w-xs">
           {row.filePath || row.url || "N/A"}
         </a>
-      ),
-      className: "max-w-md"
+      )
     },
     {
-      header: "Actions",
-      cell: (row) => (
+      key: "actions",
+      label: "Actions",
+      render: (row) => (
         <div className="flex gap-2">
           {row.url && (
             <a
@@ -194,6 +210,7 @@ export const TeacherResourcesPage = () => {
             onClick={() => {
               setFormData({ title: "", type: "pdf", url: "" });
               setSelectedFile(null);
+              setUploadProgress(0);
               setShowModal(true);
             }}
             className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition"
@@ -236,11 +253,13 @@ export const TeacherResourcesPage = () => {
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition">
             <input
               type="file"
+              disabled={uploading}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
                   setSelectedFile(file);
                   setFormData({ ...formData, url: "" });
+                  setUploadProgress(0);
                 }
               }}
               className="hidden"
@@ -256,13 +275,34 @@ export const TeacherResourcesPage = () => {
             </label>
           </div>
 
+          {uploading && selectedFile ? (
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm font-medium text-blue-900">
+                <span className="inline-flex items-center gap-2">
+                  <Upload size={16} />
+                  Upload en cours
+                </span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-blue-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-200"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
           {formData.type.includes("youtube") || formData.type === "external" ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">URL *</label>
               <input
                 type="url"
                 value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, url: e.target.value });
+                  setUploadProgress(0);
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="https://..."
                 required={formData.type.includes("youtube") || formData.type === "external"}
@@ -273,14 +313,19 @@ export const TeacherResourcesPage = () => {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition"
+              disabled={uploading}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Ajouter
+              {uploading ? "Upload..." : "Ajouter"}
             </button>
             <button
               type="button"
-              onClick={() => setShowModal(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+              onClick={() => {
+                setShowModal(false);
+                setUploadProgress(0);
+              }}
+              disabled={uploading}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:cursor-not-allowed disabled:opacity-70"
             >
               Annuler
             </button>

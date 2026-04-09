@@ -259,16 +259,6 @@ export const StudentLessonPage = () => {
                 </Link>
               </div>
 
-              <div className="prose prose-slate prose-headings:font-semibold prose-headings:text-slate-950 prose-p:leading-8 prose-p:text-slate-700 prose-strong:text-slate-900 prose-a:text-brand-600 prose-a:underline prose-li:mt-2 prose-blockquote:border-slate-200 prose-blockquote:bg-slate-50 max-w-none">
-                <RichTextContent html={lesson.content} className="lesson-content" emptyLabel="Le contenu de cette leçon sera disponible prochainement." />
-              </div>
-
-              {lesson.image && (
-                <figure className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
-                  <img src={lesson.image} alt={lesson.title} className="w-full object-cover" />
-                </figure>
-              )}
-
               {lesson.youtubeEmbedUrl && (
                 <figure className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
                   <div className="aspect-video">
@@ -282,6 +272,16 @@ export const StudentLessonPage = () => {
                       title={lesson.title}
                     />
                   </div>
+                </figure>
+              )}
+
+              <div className="prose prose-slate prose-headings:font-semibold prose-headings:text-slate-950 prose-p:leading-8 prose-p:text-slate-700 prose-strong:text-slate-900 prose-a:text-brand-600 prose-a:underline prose-li:mt-2 prose-blockquote:border-slate-200 prose-blockquote:bg-slate-50 max-w-none">
+                <RichTextContent html={lesson.content} className="lesson-content" emptyLabel="Le contenu de cette leçon sera disponible prochainement." />
+              </div>
+
+              {lesson.image && (
+                <figure className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+                  <img src={lesson.image} alt={lesson.title} className="w-full object-cover" />
                 </figure>
               )}
 
@@ -326,13 +326,16 @@ export const StudentLessonPage = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <button
                   onClick={markAsComplete}
                   disabled={marking}
-                  className="min-w-[220px] rounded-3xl bg-gradient-to-r from-brand-600 to-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-200/20 transition hover:from-brand-700 hover:to-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-w-[240px] items-center justify-center gap-3 rounded-3xl bg-gradient-to-r from-rose-600 to-red-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition hover:from-rose-700 hover:to-red-700 disabled:cursor-not-allowed disabled:from-rose-500 disabled:to-red-500 disabled:text-white disabled:opacity-100"
                 >
-                  {marking ? "Enregistrement..." : "Marquer comme terminé"}
+                  <svg className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.414l-7.07 7.07a1 1 0 01-1.415 0L3.296 8.85a1 1 0 111.414-1.414l4.216 4.216 6.363-6.362a1 1 0 011.415 0z" clipRule="evenodd" />
+                  </svg>
+                  <span>{marking ? "Enregistrement..." : "Marquer comme terminé"}</span>
                 </button>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   {previousItem && (

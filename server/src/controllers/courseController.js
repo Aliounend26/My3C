@@ -6,6 +6,7 @@ import { User } from "../models/User.js";
 import { generateCourseQr } from "../services/qrService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ensureStudentCanAccessCourse, getStudentAllowedCourseIds } from "../utils/studentAccess.js";
+import { createNotifications, getUsersByRoles } from "../utils/notificationHelper.js";
 
 const uniqueIds = (items = []) => [...new Set(items.map((item) => item?.toString?.()).filter(Boolean))];
 
@@ -178,6 +179,61 @@ export const getCourseGroupSessions = asyncHandler(async (req, res) => {
 export const createCourseGroup = asyncHandler(async (req, res) => {
   const group = await CourseGroup.create(req.body);
   await recalculateTeacherAssignments(group.teacher);
+  const [teacher, admins, superadmins] = await Promise.all([
+    group.teacher ? User.findById(group.teacher).select("_id role firstName lastName") : null,
+    getUsersByRoles("admin"),
+    getUsersByRoles("superadmin")
+  ]);
+  await createNotifications([
+    ...(teacher
+      ? [
+          {
+            userId: teacher._id,
+            role: teacher.role,
+            type: "course_assigned",
+            priority: "medium",
+            title: "Nouveau cours assigne",
+            message: `Le cours "${group.title}" vous a ete assigne.`,
+            link: `/courses/${group._id}`,
+            metadata: { courseId: group._id.toString() }
+          }
+        ]
+      : []),
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Cours cree",
+      message: `Le cours "${group.title}" a ete cree avec succes.`,
+      link: "/courses",
+      metadata: { courseId: group._id.toString() }
+    },
+    ...admins
+      .filter((admin) => admin._id.toString() !== req.user._id.toString())
+      .map((admin) => ({
+        userId: admin._id,
+        role: admin.role,
+        type: "admin_action_success",
+        priority: "low",
+        title: "Nouveau cours cree",
+        message: `${req.user.firstName} ${req.user.lastName} a cree le cours "${group.title}".`,
+        link: "/courses",
+        metadata: { courseId: group._id.toString() }
+      })),
+    ...superadmins
+      .filter((superadmin) => superadmin._id.toString() !== req.user._id.toString())
+      .map((superadmin) => ({
+      userId: superadmin._id,
+      role: superadmin.role,
+      type: "activity_important",
+      priority: "low",
+      title: "Nouveau cours cree",
+      message: `Le cours "${group.title}" a ete cree sur la plateforme.`,
+      link: "/courses",
+      metadata: { courseId: group._id.toString() }
+      }))
+  ]);
   res.status(201).json(await CourseGroup.findById(group._id).populate("formation"));
 });
 
@@ -201,6 +257,37 @@ export const updateCourseGroup = asyncHandler(async (req, res) => {
   await group.save();
   await recalculateTeacherAssignments(previousTeacherId);
   await recalculateTeacherAssignments(group.teacher);
+
+  const notifications = [
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Cours mis a jour",
+      message: `Le cours "${group.title}" a ete mis a jour.`,
+      link: "/courses",
+      metadata: { courseId: group._id.toString() }
+    }
+  ];
+
+  if (group.teacher && group.teacher.toString() !== previousTeacherId) {
+    const teacher = await User.findById(group.teacher).select("_id role firstName lastName");
+    if (teacher) {
+      notifications.push({
+        userId: teacher._id,
+        role: teacher.role,
+        type: "course_assigned",
+        priority: "medium",
+        title: "Cours assigne",
+        message: `Le cours "${group.title}" vous a ete assigne.`,
+        link: `/courses/${group._id}`,
+        metadata: { courseId: group._id.toString() }
+      });
+    }
+  }
+
+  await createNotifications(notifications);
 
   res.json(await CourseGroup.findById(group._id).populate("formation teacher classRoom"));
 });
@@ -227,6 +314,28 @@ export const updateCourseGroupStudents = asyncHandler(async (req, res) => {
 
   await syncCourseGroupStudents(group, req.body.studentIds || []);
   const students = await User.find({ role: "student", assignedCourses: group._id }).select("-password").populate("formations classrooms assignedCourses");
+  await createNotifications([
+    {
+      userId: req.user._id,
+      role: req.user.role,
+      type: "admin_action_success",
+      priority: "low",
+      title: "Affectation des etudiants mise a jour",
+      message: `Les inscriptions des etudiants au cours "${group.title}" ont ete mises a jour.`,
+      link: "/courses",
+      metadata: { courseId: group._id.toString(), studentCount: students.length }
+    },
+    ...students.map((student) => ({
+      userId: student._id,
+      role: student.role,
+      type: "course_assigned",
+      priority: "medium",
+      title: "Cours disponible",
+      message: `Vous etes inscrit au cours "${group.title}".`,
+      link: `/courses/${group._id}`,
+      metadata: { courseId: group._id.toString() }
+    }))
+  ]);
   res.json(students);
 });
 

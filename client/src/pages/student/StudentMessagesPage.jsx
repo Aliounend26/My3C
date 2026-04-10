@@ -8,6 +8,11 @@ import { useAuth } from "../../hooks/useAuth";
 import { resourceService } from "../../services/resourceService";
 
 const formatDate = (value) => new Date(value).toLocaleString("fr-FR");
+const toRefId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return (value._id || value.id || value)?.toString?.() || "";
+};
 
 export const StudentMessagesPage = () => {
   const { user } = useAuth();
@@ -43,26 +48,46 @@ export const StudentMessagesPage = () => {
     loadData();
   }, []);
 
+  const currentStudent = useMemo(() => {
+    const currentUserId = user?.id || user?._id;
+    return students.find((student) => student._id === currentUserId) || null;
+  }, [students, user?.id, user?._id]);
+
   const recipientOptions = useMemo(() => {
-    if (!students.length || !formData.course) return [];
-    const courseStudents = students.filter((student) =>
-      (student.assignedCourses || []).some((course) => (course._id || course).toString() === formData.course)
-    );
+    if (!students.length || !currentStudent) return [];
 
-    const courseTeacher = courses.find((course) => course._id === formData.course)?.teacher;
-    const teacherOption = courseTeacher
-      ? [
-          {
-            _id: courseTeacher._id,
-            firstName: courseTeacher.firstName,
-            lastName: courseTeacher.lastName,
-            role: "teacher"
-          }
-        ]
-      : [];
+    const currentUserId = user?.id || user?._id;
+    const currentFormationIds = new Set((currentStudent.formations || user?.formations || []).map((formation) => toRefId(formation)).filter(Boolean));
+    const selectedCourse = courses.find((course) => course._id === formData.course);
 
-    return [...teacherOption, ...courseStudents.filter((student) => student._id !== user?.id && student._id !== user?._id)];
-  }, [courses, formData.course, students, user?.id, user?._id]);
+    const sameFormationStudents = students.filter((student) => {
+      if (student._id === currentUserId) return false;
+      const studentFormationIds = (student.formations || []).map((formation) => toRefId(formation)).filter(Boolean);
+      return studentFormationIds.some((formationId) => currentFormationIds.has(formationId));
+    });
+
+    const teacherOption =
+      selectedCourse?.teacher &&
+      (currentStudent.assignedCourses || []).some((course) => toRefId(course) === selectedCourse._id)
+        ? [
+            {
+              _id: selectedCourse.teacher._id,
+              firstName: selectedCourse.teacher.firstName,
+              lastName: selectedCourse.teacher.lastName,
+              role: "teacher"
+            }
+          ]
+        : [];
+
+    const recipientsById = new Map();
+    [...teacherOption, ...sameFormationStudents].forEach((recipient) => {
+      if (recipient?._id) {
+        recipientsById.set(recipient._id, recipient);
+      }
+    });
+
+    return [...recipientsById.values()];
+  }, [courses, currentStudent, formData.course, students, user?.formations, user?.id, user?._id]);
 
   const groupedMessages = useMemo(() => {
     if (!messages) return [];

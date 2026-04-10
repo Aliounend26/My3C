@@ -14,6 +14,11 @@ const toRefId = (value) => {
   if (typeof value === "string") return value;
   return (value._id || value.id || value)?.toString?.() || "";
 };
+const getRefIds = (values = []) => values.map((value) => toRefId(value)).filter(Boolean);
+const hasSharedRef = (left = [], right = []) => {
+  const rightIds = new Set(getRefIds(right));
+  return getRefIds(left).some((id) => rightIds.has(id));
+};
 
 const getTeacherOwnedClasses = async (teacherId) => {
   const courses = await CourseGroup.find({ teacher: teacherId }).select("classRoom");
@@ -21,31 +26,52 @@ const getTeacherOwnedClasses = async (teacherId) => {
 };
 
 const ensureStudentCanMessage = async (user, toUserId, courseId, res) => {
-  const recipient = await User.findById(toUserId).populate("assignedCourses classrooms");
+  const recipient = await User.findById(toUserId).populate("assignedCourses formations");
   if (!recipient) {
     res.status(404);
     throw new Error("Destinataire introuvable");
   }
 
   const normalizedCourseId = toRefId(courseId);
-  const userClassrooms = (user.classrooms || []).map((room) => toRefId(room)).filter(Boolean);
-  const recipientClassrooms = (recipient.classrooms || []).map((room) => toRefId(room)).filter(Boolean);
-  const sameClass = userClassrooms.some((roomId) => recipientClassrooms.includes(roomId));
+  const userCourseIds = getRefIds(user.assignedCourses || []);
+  const userFormationIds = getRefIds(user.formations || []);
+  const recipientFormationIds = getRefIds(recipient.formations || []);
 
-  const userCourses = (user.assignedCourses || []).map((course) => toRefId(course)).filter(Boolean);
-  const recipientCourses = (recipient.assignedCourses || []).map((course) => toRefId(course)).filter(Boolean);
-  const sameCourse = normalizedCourseId && userCourses.includes(normalizedCourseId) && recipientCourses.includes(normalizedCourseId);
+  if (recipient.role === "student") {
+    const sameFormation = hasSharedRef(userFormationIds, recipientFormationIds);
+    if (sameFormation) {
+      return recipient;
+    }
 
-  let teacherOfCourse = false;
-  if (normalizedCourseId && recipient.role === "teacher") {
-    const course = await CourseGroup.findById(normalizedCourseId);
-    teacherOfCourse = course && toRefId(course.teacher) === toRefId(recipient._id);
-  }
-
-  if (!sameClass && !sameCourse && !teacherOfCourse) {
     res.status(403);
     throw new Error("Vous ne pouvez pas envoyer de message a ce destinataire");
   }
+
+  if (recipient.role === "teacher") {
+    if (normalizedCourseId && !userCourseIds.includes(normalizedCourseId)) {
+      res.status(403);
+      throw new Error("Vous ne pouvez pas utiliser ce cours");
+    }
+
+    if (normalizedCourseId) {
+      const course = await CourseGroup.findById(normalizedCourseId).select("teacher");
+      if (course && toRefId(course.teacher) === toRefId(recipient._id)) {
+        return recipient;
+      }
+    }
+
+    const senderCourses = await CourseGroup.find({ _id: { $in: userCourseIds } }).select("teacher");
+    const isTeacherLinkedToStudentCourse = senderCourses.some((course) => toRefId(course.teacher) === toRefId(recipient._id));
+    if (isTeacherLinkedToStudentCourse) {
+      return recipient;
+    }
+
+    res.status(403);
+    throw new Error("Vous ne pouvez pas envoyer de message a ce destinataire");
+  }
+
+  res.status(403);
+  throw new Error("Vous ne pouvez pas envoyer de message a ce destinataire");
 };
 
 const ensureTeacherCanMessageStudent = async (teacher, recipientId, res, courseId) => {

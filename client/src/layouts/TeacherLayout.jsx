@@ -21,7 +21,7 @@ export const TeacherLayout = () => {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.12),_transparent_32%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_100%)] px-3 py-3 sm:px-4 sm:py-4 lg:p-6">
-      <div className="mx-auto flex w-full max-w-7xl gap-6">
+      <div className="flex w-full gap-6">
         <Sidebar items={teacherItems} mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
         <main className="min-w-0 flex-1">
           <Header title="Espace formateur" onMenuOpen={() => setMobileMenuOpen(true)} />

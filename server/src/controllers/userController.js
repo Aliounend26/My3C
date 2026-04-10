@@ -14,6 +14,14 @@ const populateUser = (query) =>
   });
 
 const uniqueIds = (items = []) => [...new Set(items.map((item) => item?.toString?.()).filter(Boolean))];
+const normalizeOptionalUniqueValue = (value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : undefined;
+};
 
 const deriveTeacherScopeFromCourses = async (courseIds = []) => {
   if (!courseIds.length) {
@@ -107,7 +115,11 @@ export const getUser = asyncHandler(async (req, res) => {
 });
 
 export const createUser = asyncHandler(async (req, res) => {
-  const payload = req.body;
+  const payload = {
+    ...req.body,
+    matricule: normalizeOptionalUniqueValue(req.body.matricule),
+    phone: normalizeOptionalUniqueValue(req.body.phone)
+  };
   const requestedRole = payload.role || "student";
 
   if (req.user.role !== "superadmin" && requestedRole === "superadmin") {
@@ -214,6 +226,11 @@ export const updateUser = asyncHandler(async (req, res) => {
   const allowed = ["firstName", "lastName", "email", "phone", "specialty", "role", "matricule", "formations", "classrooms", "assignedCourses", "isActive"];
   allowed.forEach((field) => {
     if (req.body[field] !== undefined) {
+      if (field === "matricule" || field === "phone") {
+        user[field] = normalizeOptionalUniqueValue(req.body[field]);
+        return;
+      }
+
       user[field] = req.body[field];
     }
   });

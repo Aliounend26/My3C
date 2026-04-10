@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../../components/common/EmptyState";
 import { Loader } from "../../components/common/Loader";
+import { LoadingButton } from "../../components/common/LoadingButton";
 import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
+import { useAuth } from "../../hooks/useAuth";
 import { resourceService } from "../../services/resourceService";
 
 const formatDate = (value) => new Date(value).toLocaleString("fr-FR");
 
 export const StudentMessagesPage = () => {
+  const { user } = useAuth();
   const [announcements, setAnnouncements] = useState(null);
   const [messages, setMessages] = useState(null);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ course: "", to: "", body: "" });
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const loadData = async () => {
     const [announcementsData, messagesData, coursesData, studentsData] = await Promise.all([
@@ -56,8 +61,8 @@ export const StudentMessagesPage = () => {
         ]
       : [];
 
-    return [...teacherOption, ...courseStudents];
-  }, [courses, formData.course, students]);
+    return [...teacherOption, ...courseStudents.filter((student) => student._id !== user?.id && student._id !== user?._id)];
+  }, [courses, formData.course, students, user?.id, user?._id]);
 
   const groupedMessages = useMemo(() => {
     if (!messages) return [];
@@ -66,13 +71,25 @@ export const StudentMessagesPage = () => {
 
   const sendMessage = async (event) => {
     event.preventDefault();
+    setFeedback({ error: "", success: "" });
+    setSending(true);
+
     try {
       await resourceService.post("/messages", formData);
-      setShowModal(false);
+      setFeedback({ error: "", success: "Message envoye." });
       setFormData({ course: courses?.[0]?._id || "", to: "", body: "" });
       await loadData();
+      window.setTimeout(() => {
+        setShowModal(false);
+        setFeedback((current) => ({ ...current, success: "" }));
+      }, 900);
     } catch (error) {
-      console.error("Impossible d'envoyer le message", error);
+      setFeedback({
+        error: error.response?.data?.message || "Impossible d'envoyer le message.",
+        success: ""
+      });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -85,7 +102,13 @@ export const StudentMessagesPage = () => {
         title="Messages et annonces"
         description="Consultez les annonces de vos cours et distinguez clairement les messages individuels, de cours ou de classe."
         actions={
-          <button className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white" onClick={() => setShowModal(true)}>
+          <button
+            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
+            onClick={() => {
+              setFeedback({ error: "", success: "" });
+              setShowModal(true);
+            }}
+          >
             Nouveau message
           </button>
         }
@@ -149,7 +172,15 @@ export const StudentMessagesPage = () => {
         </section>
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Envoyer un message">
+      <Modal
+        open={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setSending(false);
+          setFeedback({ error: "", success: "" });
+        }}
+        title="Envoyer un message"
+      >
         <form onSubmit={sendMessage} className="space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">Cours</span>
@@ -194,7 +225,12 @@ export const StudentMessagesPage = () => {
             />
           </label>
 
-          <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Envoyer</button>
+          {feedback.error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{feedback.error}</div> : null}
+          {feedback.success ? <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback.success}</div> : null}
+
+          <LoadingButton type="submit" loading={sending} loadingText="Envoi en cours..." className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">
+            Envoyer
+          </LoadingButton>
         </form>
       </Modal>
     </div>

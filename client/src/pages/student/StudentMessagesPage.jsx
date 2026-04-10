@@ -13,6 +13,36 @@ const toRefId = (value) => {
   if (typeof value === "string") return value;
   return (value._id || value.id || value)?.toString?.() || "";
 };
+const getFullName = (person) => `${person?.firstName || ""} ${person?.lastName || ""}`.trim() || "Utilisateur";
+
+const MessageCard = ({ message, currentUserId }) => {
+  const isDirect = message.deliveryType === "direct";
+  const isSentByCurrentUser = toRefId(message.from) === currentUserId;
+  const senderName = isSentByCurrentUser ? "Vous" : getFullName(message.from);
+  const recipientName = getFullName(message.to);
+  const contextLabel =
+    message.deliveryType === "class"
+      ? `Message de classe · ${message.classRoom?.name || "-"}`
+      : message.deliveryType === "course"
+        ? `Message de cours · ${message.course?.title || "-"}`
+        : "Message individuel";
+
+  return (
+    <article className="rounded-3xl border border-slate-200 px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-slate-900">Emetteur: {senderName}</p>
+          {isDirect ? <p className="text-sm text-slate-600">Destinataire: {recipientName}</p> : null}
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{contextLabel}</span>
+      </div>
+      <p className="mt-3 text-sm leading-7 text-slate-600">{message.body}</p>
+      <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
+        {(message.subject || message.course?.title || "Conversation")} · {formatDate(message.createdAt)}
+      </p>
+    </article>
+  );
+};
 
 export const StudentMessagesPage = () => {
   const { user } = useAuth();
@@ -93,6 +123,12 @@ export const StudentMessagesPage = () => {
     if (!messages) return [];
     return [...messages].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
   }, [messages]);
+  const currentUserId = user?.id || user?._id || "";
+  const directMessages = useMemo(() => groupedMessages.filter((message) => message.deliveryType === "direct"), [groupedMessages]);
+  const formationMessages = useMemo(
+    () => groupedMessages.filter((message) => message.deliveryType === "course" || message.deliveryType === "class"),
+    [groupedMessages]
+  );
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -169,27 +205,41 @@ export const StudentMessagesPage = () => {
         <section className="glass-card p-5">
           <h2 className="mb-4 text-lg font-semibold text-slate-950">Messages</h2>
           {groupedMessages.length ? (
-            <div className="space-y-3">
-              {groupedMessages.map((message) => (
-                <article key={message._id} className="rounded-3xl border border-slate-200 px-4 py-4">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {message.from?.role === "student"
-                      ? `Vers ${message.to?.firstName || ""} ${message.to?.lastName || ""}`.trim()
-                      : `De ${message.from?.firstName || ""} ${message.from?.lastName || ""}`.trim()}
-                  </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
-                    {message.deliveryType === "class"
-                      ? `Message de classe · ${message.classRoom?.name || "-"}`
-                      : message.deliveryType === "course"
-                        ? `Message de cours · ${message.course?.title || "-"}`
-                        : "Message individuel"}
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">{message.body}</p>
-                  <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
-                    {(message.subject || message.course?.title || "Conversation")} · {formatDate(message.createdAt)}
-                  </p>
-                </article>
-              ))}
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-950">Messages individuels</h3>
+                  <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">{directMessages.length}</span>
+                </div>
+                {directMessages.length ? (
+                  <div className="space-y-3">
+                    {directMessages.map((message) => (
+                      <MessageCard key={message._id} message={message} currentUserId={currentUserId} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                    Aucun message individuel pour le moment.
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-950">Messages de la formation</h3>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{formationMessages.length}</span>
+                </div>
+                {formationMessages.length ? (
+                  <div className="space-y-3">
+                    {formationMessages.map((message) => (
+                      <MessageCard key={message._id} message={message} currentUserId={currentUserId} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                    Aucun message collectif lie a votre formation pour le moment.
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <EmptyState title="Aucun message" description="Vos echanges lies a vos cours apparaitront ici." />

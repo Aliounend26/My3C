@@ -13,7 +13,7 @@ const redirectByRole = (role) => {
 
 export const LoginPage = () => {
   const { login, user } = useAuth();
-  const [form, setForm] = useState({ email: "admin@mypresence.local", password: "Admin123!" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -49,7 +49,7 @@ export const LoginPage = () => {
           <div className="mt-8 grid gap-3">
             <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.3em] text-blue-100">Roles</p>
-              <p className="mt-2 text-sm text-white/90">SuperAdmin, Admin, Professeur et Etudiant avec routes protegees.</p>
+              <p className="mt-2 text-sm text-white/90">SuperAdmin, Admin, Professeur et Etudiant.</p>
             </div>
             <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.3em] text-blue-100">E-learning</p>
@@ -61,7 +61,7 @@ export const LoginPage = () => {
         <div className="p-8 lg:p-12">
           <p className="text-sm uppercase tracking-[0.35em] text-brand-500">Connexion securisee</p>
           <h2 className="mt-3 text-3xl font-bold text-slate-950">Bienvenue sur My 3C</h2>
-          <p className="mt-3 text-sm text-slate-500">Utilisez un compte de demonstration pour explorer les espaces pedagogiques et administratifs.</p>
+          <p className="mt-3 text-sm text-slate-500">Connectez-vous avec vos identifiants personnels pour acceder a votre espace pedagogique ou administratif.</p>
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <label className="block">
@@ -92,13 +92,6 @@ export const LoginPage = () => {
               Se connecter
             </LoadingButton>
           </form>
-
-          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-            <p>SuperAdmin: superadmin@mypresence.local / SuperAdmin123!</p>
-            <p>Admin: admin@mypresence.local / Admin123!</p>
-            <p>Professeur: teacher@mypresence.local / Teacher123!</p>
-            <p>Etudiant: sara@mypresence.local / Student123!</p>
-          </div>
         </div>
       </div>
     </div>

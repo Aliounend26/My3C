@@ -18,6 +18,20 @@ import { VideoResource } from "../models/VideoResource.js";
 import { generateCourseQr } from "../services/qrService.js";
 import { getAttendanceHours } from "../utils/attendance.js";
 
+const isRemoteMongoUri = (mongoUri = "") => {
+  const normalizedUri = mongoUri.trim().toLowerCase();
+
+  if (!normalizedUri) {
+    return false;
+  }
+
+  return !(
+    normalizedUri.includes("localhost") ||
+    normalizedUri.includes("127.0.0.1") ||
+    normalizedUri.includes("mongodb://mongodb:27017")
+  );
+};
+
 const buildDate = (offsetDays) => {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
@@ -25,6 +39,15 @@ const buildDate = (offsetDays) => {
 };
 
 const seed = async () => {
+  const mongoUri = process.env.MONGODB_URI || "";
+  const allowRemoteSeed = process.env.ALLOW_REMOTE_SEED === "true";
+
+  if (isRemoteMongoUri(mongoUri) && !allowRemoteSeed) {
+    throw new Error(
+      "Refus de lancer le seed sur une base distante. Utilisez une base locale ou definissez ALLOW_REMOTE_SEED=true si vous voulez vraiment ecraser cette base."
+    );
+  }
+
   await connectDatabase();
 
   await Promise.all([

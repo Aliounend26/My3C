@@ -1,6 +1,7 @@
-import { BarChart3, Bell, Book, BookOpen, CalendarCheck2, CalendarDays, ClipboardList, Folder, GraduationCap, LayoutDashboard, QrCode, ScanLine, UserCircle2, Users, X } from "lucide-react";
+import { BarChart3, Bell, Book, BookOpen, CalendarCheck2, CalendarDays, ClipboardList, Folder, GraduationCap, LayoutDashboard, LogOut, QrCode, ScanLine, UserCircle2, Users, X } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 import { BrandLogo } from "./BrandLogo";
 
 const iconMap = {
@@ -26,8 +27,8 @@ const iconMap = {
   bell: Bell
 };
 
-const SidebarContent = ({ items, onNavigate, mobile = false }) => (
-  <>
+const SidebarContent = ({ items, onNavigate, mobile = false, onLogout = () => {} }) => (
+  <div className={mobile ? "flex h-full flex-col" : ""}>
     <div className={`mb-5 border-b pb-5 ${mobile ? "border-slate-200" : "border-slate-100"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -49,7 +50,7 @@ const SidebarContent = ({ items, onNavigate, mobile = false }) => (
         ) : null}
       </div>
     </div>
-    <nav className={`space-y-2 ${mobile ? "overflow-y-auto pb-4" : ""}`}>
+    <nav className={`space-y-2 ${mobile ? "min-h-0 flex-1 overflow-y-auto pb-4" : ""}`}>
       {items.map((item) => {
         const Icon = iconMap[item.icon] || BookOpen;
         return (
@@ -73,10 +74,24 @@ const SidebarContent = ({ items, onNavigate, mobile = false }) => (
         );
       })}
     </nav>
-  </>
+    {mobile ? (
+      <div className="mt-auto border-t border-slate-200 pt-4">
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/15 transition hover:bg-slate-800"
+        >
+          <LogOut size={18} className="shrink-0" />
+          Deconnexion
+        </button>
+      </div>
+    ) : null}
+  </div>
 );
 
 export const Sidebar = ({ items, mobileOpen = false, onClose = () => {} }) => {
+  const { logout } = useAuth();
+
   useEffect(() => {
     if (!mobileOpen) {
       return undefined;
@@ -105,7 +120,15 @@ export const Sidebar = ({ items, mobileOpen = false, onClose = () => {} }) => {
             aria-label="Fermer le menu mobile"
           />
           <aside className="absolute inset-y-0 left-0 flex w-[88vw] max-w-[360px] flex-col border-r border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
-            <SidebarContent items={items} onNavigate={onClose} mobile />
+            <SidebarContent
+              items={items}
+              onNavigate={onClose}
+              mobile
+              onLogout={() => {
+                onClose();
+                logout();
+              }}
+            />
           </aside>
         </div>
       ) : null}

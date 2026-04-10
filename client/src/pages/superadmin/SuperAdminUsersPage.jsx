@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader } from "../../components/common/Loader";
+import { LoadingButton } from "../../components/common/LoadingButton";
 import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatCard } from "../../components/common/StatCard";
@@ -42,6 +43,8 @@ export const SuperAdminUsersPage = ({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(createEmptyForm(lockedRole || "student"));
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const load = async () => {
     const [usersData, formationsData, classesData, coursesData] = await Promise.all([
@@ -74,12 +77,14 @@ export const SuperAdminUsersPage = ({
   }, [users]);
 
   const openCreate = () => {
+    setFeedback({ error: "", success: "" });
     setEditing(null);
     setForm(createEmptyForm(lockedRole || selectedRole || "student"));
     setOpen(true);
   };
 
   const openEdit = (user) => {
+    setFeedback({ error: "", success: "" });
     setEditing(user);
     setForm({
       firstName: user.firstName || "",
@@ -99,34 +104,43 @@ export const SuperAdminUsersPage = ({
 
   const submit = async (event) => {
     event.preventDefault();
+    setFeedback({ error: "", success: "" });
+    setSubmitting(true);
 
-    const payload = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      matricule: form.matricule,
-      role: lockedRole || form.role,
-      isActive: form.isActive,
-      formations: form.formations,
-      classrooms: form.classrooms,
-      assignedCourses: form.assignedCourses
-    };
+    try {
+      const payload = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        matricule: form.matricule,
+        role: lockedRole || form.role,
+        isActive: form.isActive,
+        formations: form.formations,
+        classrooms: form.classrooms,
+        assignedCourses: form.assignedCourses
+      };
 
-    if (!editing && form.password) {
-      payload.password = form.password;
+      if (!editing && form.password) {
+        payload.password = form.password;
+      }
+
+      if (editing) {
+        await resourceService.put(`/users/${editing._id}`, payload);
+      } else {
+        await resourceService.post("/users", { ...payload, password: form.password || "ChangeMe123!" });
+      }
+
+      setOpen(false);
+      setEditing(null);
+      setForm(createEmptyForm(lockedRole || selectedRole || "student"));
+      setFeedback({ error: "", success: editing ? "Utilisateur mis a jour." : "Compte cree avec succes." });
+      await load();
+    } catch (requestError) {
+      setFeedback({ error: requestError.response?.data?.message || "Enregistrement impossible.", success: "" });
+    } finally {
+      setSubmitting(false);
     }
-
-    if (editing) {
-      await resourceService.put(`/users/${editing._id}`, payload);
-    } else {
-      await resourceService.post("/users", { ...payload, password: form.password || "ChangeMe123!" });
-    }
-
-    setOpen(false);
-    setEditing(null);
-    setForm(createEmptyForm(lockedRole || selectedRole || "student"));
-    await load();
   };
 
   if (!users) return <Loader label="Chargement des utilisateurs..." />;
@@ -170,6 +184,8 @@ export const SuperAdminUsersPage = ({
       </div>
 
       <div className="glass-card p-5">
+        {feedback.error ? <div className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{feedback.error}</div> : null}
+        {feedback.success ? <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback.success}</div> : null}
         <DataTable
           columns={[
             {
@@ -251,7 +267,9 @@ export const SuperAdminUsersPage = ({
         title={editing ? "Modifier un utilisateur" : "Creer un utilisateur"}
         onClose={() => {
           setOpen(false);
+          setSubmitting(false);
           setEditing(null);
+          setFeedback({ error: "", success: "" });
           setForm(createEmptyForm(lockedRole || selectedRole || "student"));
         }}
       >
@@ -328,9 +346,16 @@ export const SuperAdminUsersPage = ({
             </select>
           </label>
 
-          <button className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white md:col-span-2">
+          {feedback.error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 md:col-span-2">{feedback.error}</div> : null}
+
+          <LoadingButton
+            type="submit"
+            loading={submitting}
+            loadingText={editing ? "Enregistrement..." : "Creation en cours..."}
+            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white md:col-span-2"
+          >
             {editing ? "Enregistrer les modifications" : "Creer le compte"}
-          </button>
+          </LoadingButton>
         </form>
       </Modal>
     </div>

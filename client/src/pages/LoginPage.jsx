@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { BrandLogo } from "../components/common/BrandLogo";
+import { LoadingButton } from "../components/common/LoadingButton";
 import { useAuth } from "../hooks/useAuth";
 
 const redirectByRole = (role) => {
@@ -87,9 +88,9 @@ export const LoginPage = () => {
 
             {error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-            <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white" disabled={loading}>
-              {loading ? "Connexion..." : "Se connecter"}
-            </button>
+            <LoadingButton type="submit" loading={loading} loadingText="Connexion..." className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">
+              Se connecter
+            </LoadingButton>
           </form>
 
           <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">

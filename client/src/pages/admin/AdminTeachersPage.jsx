@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader } from "../../components/common/Loader";
+import { LoadingButton } from "../../components/common/LoadingButton";
 import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { DataTable } from "../../components/tables/DataTable";
@@ -33,6 +34,8 @@ export const AdminTeachersPage = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [detailTeacher, setDetailTeacher] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const load = async () => {
     const [teachersData, courseData] = await Promise.all([resourceService.get("/users?role=teacher"), resourceService.get("/courses/groups")]);
@@ -53,26 +56,36 @@ export const AdminTeachersPage = () => {
 
   const submit = async (event) => {
     event.preventDefault();
-    const payload = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      specialty: form.specialty,
-      assignedCourses: form.assignedCourses,
-      isActive: form.isActive
-    };
+    setFeedback({ error: "", success: "" });
+    setSubmitting(true);
 
-    if (editing) {
-      await resourceService.put(`/users/${editing._id}`, payload);
-    } else {
-      await resourceService.post("/users", { ...payload, role: "teacher", password: form.password });
+    try {
+      const payload = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        specialty: form.specialty,
+        assignedCourses: form.assignedCourses,
+        isActive: form.isActive
+      };
+
+      if (editing) {
+        await resourceService.put(`/users/${editing._id}`, payload);
+      } else {
+        await resourceService.post("/users", { ...payload, role: "teacher", password: form.password });
+      }
+
+      setOpen(false);
+      setEditing(null);
+      setForm(initialForm);
+      setFeedback({ error: "", success: editing ? "Formateur mis a jour." : "Compte formateur cree avec succes." });
+      await load();
+    } catch (requestError) {
+      setFeedback({ error: requestError.response?.data?.message || "Enregistrement impossible.", success: "" });
+    } finally {
+      setSubmitting(false);
     }
-
-    setOpen(false);
-    setEditing(null);
-    setForm(initialForm);
-    await load();
   };
 
   if (!teachers) return <Loader label="Chargement des formateurs..." />;
@@ -117,6 +130,8 @@ export const AdminTeachersPage = () => {
       </div>
 
       <div className="glass-card p-5">
+        {feedback.error ? <div className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{feedback.error}</div> : null}
+        {feedback.success ? <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback.success}</div> : null}
         <DataTable
           columns={[
             {
@@ -184,7 +199,15 @@ export const AdminTeachersPage = () => {
         />
       </div>
 
-      <Modal open={open} title={editing ? "Modifier un formateur" : "Creer un formateur"} onClose={() => setOpen(false)}>
+      <Modal
+        open={open}
+        title={editing ? "Modifier un formateur" : "Creer un formateur"}
+        onClose={() => {
+          setOpen(false);
+          setSubmitting(false);
+          setFeedback({ error: "", success: "" });
+        }}
+      >
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <input className="rounded-2xl border border-slate-200 px-4 py-3" placeholder="Prenom" value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} required />
           <input className="rounded-2xl border border-slate-200 px-4 py-3" placeholder="Nom" value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} required />
@@ -227,7 +250,11 @@ export const AdminTeachersPage = () => {
             Compte actif
           </label>
 
-          <button className="rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white md:col-span-2">Enregistrer</button>
+          {feedback.error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 md:col-span-2">{feedback.error}</div> : null}
+
+          <LoadingButton type="submit" loading={submitting} loadingText="Enregistrement..." className="rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white md:col-span-2">
+            Enregistrer
+          </LoadingButton>
         </form>
       </Modal>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
+import { LoadingButton } from "../../components/common/LoadingButton";
 import { ProfilePhotoUploadField } from "../../components/common/ProfilePhotoUploadField";
 import { useAuth } from "../../hooks/useAuth";
 import { getMediaUrl } from "../../utils/media";
@@ -20,6 +21,8 @@ export const ProfilePage = () => {
   const [profileMessage, setProfileMessage] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [error, setError] = useState("");
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   useEffect(() => {
     setProfileForm({
@@ -37,6 +40,7 @@ export const ProfilePage = () => {
     event.preventDefault();
     setError("");
     setProfileMessage("");
+    setProfileSubmitting(true);
 
     try {
       if (selectedAvatar) {
@@ -47,6 +51,8 @@ export const ProfilePage = () => {
       setProfileMessage("Profil mis a jour avec succes.");
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Mise a jour du profil impossible");
+    } finally {
+      setProfileSubmitting(false);
     }
   };
 
@@ -54,9 +60,11 @@ export const ProfilePage = () => {
     event.preventDefault();
     setError("");
     setPasswordMessage("");
+    setPasswordSubmitting(true);
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError("La confirmation du nouveau mot de passe ne correspond pas.");
+      setPasswordSubmitting(false);
       return;
     }
 
@@ -73,6 +81,8 @@ export const ProfilePage = () => {
       setPasswordMessage("Mot de passe mis a jour avec succes.");
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Mise a jour du mot de passe impossible");
+    } finally {
+      setPasswordSubmitting(false);
     }
   };
 
@@ -152,9 +162,14 @@ export const ProfilePage = () => {
               <ProfilePhotoUploadField selectedFile={selectedAvatar} onFileChange={setSelectedAvatar} />
             </div>
 
-            <button className="mt-5 w-full rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/20">
+            <LoadingButton
+              type="submit"
+              loading={profileSubmitting}
+              loadingText="Mise a jour..."
+              className="mt-5 w-full rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/20"
+            >
               Mettre a jour le profil
-            </button>
+            </LoadingButton>
 
             {profileMessage ? <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{profileMessage}</div> : null}
           </form>
@@ -188,7 +203,9 @@ export const ProfilePage = () => {
                 onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                 required
               />
-              <button className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Changer le mot de passe</button>
+              <LoadingButton type="submit" loading={passwordSubmitting} loadingText="Modification..." className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">
+                Changer le mot de passe
+              </LoadingButton>
             </div>
             {passwordMessage ? <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{passwordMessage}</div> : null}
           </form>

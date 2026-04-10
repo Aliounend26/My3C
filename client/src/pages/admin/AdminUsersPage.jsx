@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader } from "../../components/common/Loader";
+import { LoadingButton } from "../../components/common/LoadingButton";
 import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatCard } from "../../components/common/StatCard";
@@ -39,6 +40,8 @@ export const AdminUsersPage = () => {
   const [courses, setCourses] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const loadUsers = async (role = filterRole) => {
     const users = await resourceService.get(`/users${role !== "all" ? `?role=${role}` : ""}`);
@@ -82,6 +85,7 @@ export const AdminUsersPage = () => {
   const derivedTeacherClasses = useMemo(() => uniqueById(selectedCourses.map((course) => course.classRoom).filter(Boolean)), [selectedCourses]);
 
   const openCreateModal = (role) => {
+    setFeedback({ error: "", success: "" });
     setForm({
       ...initialForm,
       role,
@@ -92,31 +96,40 @@ export const AdminUsersPage = () => {
 
   const submit = async (event) => {
     event.preventDefault();
+    setFeedback({ error: "", success: "" });
+    setSubmitting(true);
 
-    const payload = {
-      role: form.role,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      password: form.password,
-      isActive: form.isActive
-    };
+    try {
+      const payload = {
+        role: form.role,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        isActive: form.isActive
+      };
 
-    if (form.role === "teacher") {
-      payload.specialty = form.specialty;
-      payload.assignedCourses = form.assignedCourses;
-    } else {
-      payload.matricule = form.matricule;
-      payload.formations = form.formations;
-      payload.classrooms = form.classrooms;
-      payload.assignedCourses = form.assignedCourses;
+      if (form.role === "teacher") {
+        payload.specialty = form.specialty;
+        payload.assignedCourses = form.assignedCourses;
+      } else {
+        payload.matricule = form.matricule;
+        payload.formations = form.formations;
+        payload.classrooms = form.classrooms;
+        payload.assignedCourses = form.assignedCourses;
+      }
+
+      await resourceService.post("/users", payload);
+      setOpen(false);
+      setForm(initialForm);
+      setFeedback({ error: "", success: "Compte cree avec succes." });
+      await loadUsers();
+    } catch (requestError) {
+      setFeedback({ error: requestError.response?.data?.message || "Creation du compte impossible.", success: "" });
+    } finally {
+      setSubmitting(false);
     }
-
-    await resourceService.post("/users", payload);
-    setOpen(false);
-    setForm(initialForm);
-    await loadUsers();
   };
 
   if (!rows) return <Loader label="Chargement des utilisateurs..." />;
@@ -153,6 +166,8 @@ export const AdminUsersPage = () => {
       </div>
 
       <div className="glass-card p-5">
+        {feedback.error ? <div className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{feedback.error}</div> : null}
+        {feedback.success ? <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback.success}</div> : null}
         <DataTable
           columns={[
             {
@@ -178,7 +193,16 @@ export const AdminUsersPage = () => {
         />
       </div>
 
-      <Modal open={open} title={form.role === "teacher" ? "Creer un formateur" : "Creer un etudiant"} onClose={() => setOpen(false)} size="lg">
+      <Modal
+        open={open}
+        title={form.role === "teacher" ? "Creer un formateur" : "Creer un etudiant"}
+        onClose={() => {
+          setOpen(false);
+          setSubmitting(false);
+          setFeedback({ error: "", success: "" });
+        }}
+        size="lg"
+      >
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-medium text-slate-700">Type de compte</span>
@@ -279,7 +303,16 @@ export const AdminUsersPage = () => {
             Compte actif
           </label>
 
-          <button className="rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white md:col-span-2">Creer le compte</button>
+          {feedback.error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 md:col-span-2">{feedback.error}</div> : null}
+
+          <LoadingButton
+            type="submit"
+            loading={submitting}
+            loadingText="Creation en cours..."
+            className="rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white md:col-span-2"
+          >
+            Creer le compte
+          </LoadingButton>
         </form>
       </Modal>
     </div>

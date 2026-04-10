@@ -9,10 +9,15 @@ import { getTeacherOwnedCourseIds } from "../utils/teacherAccess.js";
 import { createNotification, createNotifications } from "../utils/notificationHelper.js";
 
 const populateMessage = (query) => query.populate("conversation from to course classRoom");
+const toRefId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return (value._id || value.id || value)?.toString?.() || "";
+};
 
 const getTeacherOwnedClasses = async (teacherId) => {
   const courses = await CourseGroup.find({ teacher: teacherId }).select("classRoom");
-  return [...new Set(courses.map((course) => course.classRoom?.toString()).filter(Boolean))];
+  return [...new Set(courses.map((course) => toRefId(course.classRoom)).filter(Boolean))];
 };
 
 const ensureStudentCanMessage = async (user, toUserId, courseId, res) => {
@@ -22,18 +27,19 @@ const ensureStudentCanMessage = async (user, toUserId, courseId, res) => {
     throw new Error("Destinataire introuvable");
   }
 
-  const userClassrooms = (user.classrooms || []).map((room) => room.toString());
-  const recipientClassrooms = (recipient.classrooms || []).map((room) => room.toString());
+  const normalizedCourseId = toRefId(courseId);
+  const userClassrooms = (user.classrooms || []).map((room) => toRefId(room)).filter(Boolean);
+  const recipientClassrooms = (recipient.classrooms || []).map((room) => toRefId(room)).filter(Boolean);
   const sameClass = userClassrooms.some((roomId) => recipientClassrooms.includes(roomId));
 
-  const userCourses = (user.assignedCourses || []).map((course) => course.toString());
-  const recipientCourses = (recipient.assignedCourses || []).map((course) => course.toString());
-  const sameCourse = courseId && userCourses.includes(courseId.toString()) && recipientCourses.includes(courseId.toString());
+  const userCourses = (user.assignedCourses || []).map((course) => toRefId(course)).filter(Boolean);
+  const recipientCourses = (recipient.assignedCourses || []).map((course) => toRefId(course)).filter(Boolean);
+  const sameCourse = normalizedCourseId && userCourses.includes(normalizedCourseId) && recipientCourses.includes(normalizedCourseId);
 
   let teacherOfCourse = false;
-  if (courseId && recipient.role === "teacher") {
-    const course = await CourseGroup.findById(courseId);
-    teacherOfCourse = course && course.teacher?.toString() === recipient._id.toString();
+  if (normalizedCourseId && recipient.role === "teacher") {
+    const course = await CourseGroup.findById(normalizedCourseId);
+    teacherOfCourse = course && toRefId(course.teacher) === toRefId(recipient._id);
   }
 
   if (!sameClass && !sameCourse && !teacherOfCourse) {
@@ -51,7 +57,7 @@ const ensureTeacherCanMessageStudent = async (teacher, recipientId, res, courseI
     throw new Error("Etudiant introuvable");
   }
 
-  const recipientCourseIds = (recipient.assignedCourses || []).map((course) => (course._id || course).toString());
+  const recipientCourseIds = (recipient.assignedCourses || []).map((course) => toRefId(course)).filter(Boolean);
   const sharedCourseIds = recipientCourseIds.filter((id) => teacherCourseIds.includes(id));
 
   if (!sharedCourseIds.length) {
@@ -59,7 +65,7 @@ const ensureTeacherCanMessageStudent = async (teacher, recipientId, res, courseI
     throw new Error("Vous ne pouvez pas contacter cet etudiant");
   }
 
-  if (courseId && !sharedCourseIds.includes(courseId.toString())) {
+  if (courseId && !sharedCourseIds.includes(toRefId(courseId))) {
     res.status(403);
     throw new Error("Cet etudiant n'est pas inscrit a ce cours");
   }
